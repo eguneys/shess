@@ -13,6 +13,7 @@ class Shess implements UserEx {
   static init = (): Shess => {
 
     const Anims = new AnimationManager()
+    const Drags = new DragManager()
   
     let ss = document.createElement('shess')
     ss.classList.add('is2d')
@@ -107,9 +108,32 @@ class Shess implements UserEx {
         pce.style.transform = `translate(${pos[0] * 700}%, ${pos[1] * 700}%)`
       }
 
+      const scale = () => {
+        pce.style.scale = `2 2`;
+      }
+
+      Drags.push({
+        q_pos: () => _pos,
+        on_click: function (_pos: [number, number]): void {
+          console.log(role)
+        },
+        on_hover: function (_pos: [number, number]): void {
+          //console.log(role)
+        },
+        on_down: function (_pos: [number, number]): void {
+          scale()
+        },
+        on_drag: function (_pos: [number, number]): void {
+
+          translate(_pos)
+        },
+        on_drop: function (_pos: [number, number]): void {
+        }
+      })
+
       Anims.pos({
         start: _pos,
-        end: [Math.random(), Math.random()],
+        end: [3/7, 3/7],
         dur: 0.6,
         update: translate
       })
@@ -155,11 +179,14 @@ class Shess implements UserEx {
       return [(ev.clientX - bounds.left) / bounds.width, (ev.clientY - bounds.top) / bounds.height]
     }
 
-    const on_mouse_move = (_p: [number, number]) => {
 
-    }
+    const on_mouse_move = (_p: [number, number]) => { Drags.move = _p }
+    const on_mouse_down = (_p: [number, number]) => { Drags.down = _p }
+    const on_mouse_up = (_p: [number, number]) => { Drags.up = _p }
 
     document.addEventListener('mousemove', (ev: MouseEvent) => on_mouse_move(norm_ev_position(ev)))
+    document.addEventListener('mousedown', (ev: MouseEvent) => on_mouse_down(norm_ev_position(ev)))
+    document.addEventListener('mouseup', (ev: MouseEvent) => on_mouse_up(norm_ev_position(ev)))
 
     const init = () => {
       ux_files.forEach(_ => _.init())
@@ -194,6 +221,77 @@ type PosCb = {
   dur: number,
   update: (pos: [number, number]) => void,
   _value?: [number, number, number, number, number],
+}
+
+type DragCb = {
+  q_pos: () => [number, number],
+  on_click: (pos: [number, number]) => void,
+  on_hover: (pos: [number, number]) => void,
+  on_down: (pos: [number, number]) => void,
+  on_drag: (pos: [number, number]) => void,
+  on_drop: (pos: [number, number]) => void
+}
+
+class DragManager {
+
+  _down?: [number, number]
+  _move?: [number, number]
+  _up?: [number, number]
+
+  d?: DragCb
+
+  set down(d: [number, number]) {
+    this._up = undefined
+    this._down = d
+
+    setTimeout(() => {
+
+      let dd = this.ds.find((dd) => distance(dd.q_pos(), d) < 1/16)
+      if (!dd) {
+        return
+      }
+      this.d = dd
+      if (this._up) {
+        dd.on_click(this._up)
+        this._move = undefined
+        this._down = undefined
+        this.d = undefined
+      } else if (this._move) {
+        this.d.on_drag(this._move)
+      } else {
+        this.d.on_down(d)
+      }
+    }, 120)
+  }
+
+  set move(m: [number, number]) {
+    this._move = m
+    if (this.d) {
+      this.d.on_drag(m)
+    } else {
+      let dd = this.ds.find((dd) => distance(dd.q_pos(), m) < 1/16)
+      if (dd) {
+        dd.on_hover(m)
+      }
+    }
+  }
+
+  set up(u: [number, number]) {
+    if (this.d) {
+      this.d.on_drop(u)
+    }
+    this._up = u
+    this._move = undefined
+    this._down = undefined
+    this.d = undefined
+  }
+
+  ds: DragCb[] = []
+
+
+  push(d: DragCb) {
+    this.ds.push(d)
+  }
 }
 
 const ease = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2
@@ -311,6 +409,15 @@ function gaffer_loop(g: Gaffer) {
   return () => {
     cancelAnimationFrame(raf_id)
   }
+}
+
+function distance(a: [number, number], b: [number, number]) {
+  let x = a[0], y = a[1]
+  let x2 = b[0], y2 = b[1]
+
+  let dx = x2 - x, dy = y2 - y
+
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 
