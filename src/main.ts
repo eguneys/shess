@@ -2,10 +2,11 @@ import './style.css'
 import './theme.css'
 import './kiwen-suwi.css'
 
-function app(el: HTMLElement) {
+class Shess {
+
+  static init = (): Shess => {
 
   let ss = document.createElement('shess')
-  el.appendChild(ss)
 
   let ranks = document.createElement('ranks')
   '12345678'.split('').forEach((r: string) => {
@@ -26,11 +27,31 @@ function app(el: HTMLElement) {
 
   let board = document.createElement('board')
 
+
   ss.appendChild(files)
   ss.appendChild(ranks)
   ss.appendChild(board)
 
+    return new Shess(ss)
+  }
 
+  constructor(readonly el: HTMLElement) {}
+
+  flip() {
+
+  }
 }
 
-app(document.getElementById('app')!)
+function main(el: HTMLElement) {
+
+  let ss = Shess.init()
+  el.appendChild(ss.el)
+
+  document.addEventListener('keydown', (ev: KeyboardEvent) => {
+    if (ev.key === 'f') {
+      ss.flip()
+    }
+  })
+}
+
+main(document.getElementById('app')!)
