@@ -5,8 +5,9 @@ import './kiwen-suwi.css'
 interface UserEx {
   init: () => void;
   flip: () => void;
+  random: () => void;
+  shake: () => void;
 }
-
 
 class Shess implements UserEx {
 
@@ -26,8 +27,6 @@ class Shess implements UserEx {
   
       ranks.appendChild(s)
   
-      const init = () => {}
-
       const flip = () => {
         switch (r) {
           case "1": { r = "8" } break;
@@ -42,10 +41,12 @@ class Shess implements UserEx {
   
         t.textContent = r
       }
-  
+
       return {
-        init,
-        flip
+        init() {},
+        flip,
+        random() {},
+        shake() {}
       }
   
     })
@@ -73,18 +74,20 @@ class Shess implements UserEx {
       }
 
 
-      const init = () => {}
       return {
-        init,
-        flip
+        init() {},
+        flip,
+        random() {},
+        shake() {}
       }
     })
   
     let board = document.createElement('board')
   
 
-
-    let ux_pieces: UserEx[] = 'RNBQKBNRPPPPPPPPrnbqkbnrpppppppp'.split('').map((p: string) => {
+    let pieces = 'RNBQKBNRPPPPPPPPrnbqkbnrpppppppp'
+    pieces = 'R'
+    let ux_pieces: UserEx[] = pieces.split('').map((p: string) => {
       let color = p.toUpperCase() === p ? 'white' : 'black'
       let role = 'pawn'
       switch (p.toUpperCase()) {
@@ -101,55 +104,124 @@ class Shess implements UserEx {
       pce.classList.add(color, role)
 
 
+      let _pos: [number, number] = [0, 0],
+        _scale = 1,
+        _angle = 0
 
-      let _pos: [number, number] = [0, 0]
+      const _transform = () => {
+        pce.style.transform = `translate(${_pos[0] * 800}%, ${_pos[1] * 800}%) \
+        scale(${_scale}) \
+        rotate(${_angle}rad)`
+      }
+
       const translate = (pos: [number, number]) => {
         _pos = pos
-        pce.style.transform = `translate(${pos[0] * 700}%, ${pos[1] * 700}%)`
+        _transform()
       }
 
-      const scale = () => {
-        pce.style.scale = `2 2`;
+      const scale = (s: number) => {
+        _scale = s
+        _transform()
       }
+
+      const rotate = (r: number) => {
+        _angle = r
+        _transform()
+      }
+
+      const scale_angle = (sr: [number, number]) => {
+        _scale = sr[0]
+        _angle = sr[1]
+        _transform()
+      }
+
+      const lerp_10 = (end: [number, number]) => {
+        Anims.cancel()
+        let a = 0.3
+        let t: [number, number] = [
+          _pos[0] * (1- a) + end[0] * a, 
+          _pos[1] * (1 - a) + end[1] * a]
+        translate(t)
+      }
+
+
+      const t60 = (end: [number, number]) => {
+       Anims.pos({
+               start: _pos,
+               end,
+               dur: 0.26,
+               update: translate
+             })
+      }
+      
+
+      const t20 = (end: [number, number]) => {
+       Anims.pos({
+               start: _pos,
+               end,
+               dur: 0.16,
+               update: translate
+             })
+      }
+      
+      const s10 = () => {
+        Anims.pos({
+          start: [_scale, _angle],
+          end: [_scale, _angle + h_pi],
+          dur: 0.6,
+          twist: (a: number) => Math.sin(a * h_pi),
+          update: scale_angle
+        })
+      }
+
 
       Drags.push({
-        q_pos: () => _pos,
+        q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
         on_click: function (_pos: [number, number]): void {
+          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
           console.log(role)
         },
         on_hover: function (_pos: [number, number]): void {
+          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
           //console.log(role)
         },
         on_down: function (_pos: [number, number]): void {
-          scale()
+          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
+          t20(_pos)
         },
         on_drag: function (_pos: [number, number]): void {
-
-          translate(_pos)
+          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
+          lerp_10(_pos)
         },
         on_drop: function (_pos: [number, number]): void {
+          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
         }
-      })
-
-      Anims.pos({
-        start: _pos,
-        end: [3/7, 3/7],
-        dur: 0.6,
-        update: translate
       })
 
       board.appendChild(pce)
 
       const init = () => {
-        translate([Math.random(), Math.random()])
+        t20([Math.random(), Math.random()])
       }
 
       const flip = () => {
+        t60([7/8 - _pos[0], 7/8 - _pos[1]])
+      }
+
+      const random = () => {
+        t20([Math.random(), Math.random()])
+      }
+
+      const shake = () => {
+        s10()
       }
 
       return {
         init,
-        flip
+        flip,
+        random,
+        shake
+
       }
      })
 
@@ -158,11 +230,6 @@ class Shess implements UserEx {
     ss.appendChild(files)
     ss.appendChild(ranks)
     ss.appendChild(board)
-
-    const flip = () => {
-      ux_files.forEach(_ => _.flip())
-      ux_ranks.forEach(_ => _.flip())
-    }
 
     let bounds: DOMRect;
 
@@ -195,9 +262,32 @@ class Shess implements UserEx {
       on_bounds()
     }
 
+    const flip = () => {
+      Anims.imm_end()
+      ux_files.forEach(_ => _.flip())
+      ux_ranks.forEach(_ => _.flip())
+      ux_pieces.forEach(_ => _.flip())
+    }
+
+    const random = () => {
+      ux_files.forEach(_ => _.random())
+      ux_ranks.forEach(_ => _.random())
+      ux_pieces.forEach(_ => _.random())
+    }
+
+    const shake = () => {
+      ux_files.forEach(_ => _.shake())
+      ux_ranks.forEach(_ => _.shake())
+      ux_pieces.forEach(_ => _.shake())
+    }
+
+
+
     let ux = {
       init,
-      flip
+      flip,
+      random,
+      shake
     }
 
 
@@ -213,12 +303,26 @@ class Shess implements UserEx {
   flip() {
     this.ux.flip()
   }
+
+  random() {
+    this.ux.random()
+  }
+
+  shake() {
+    this.ux.shake()
+  }
 }
+
+const pi = Math.PI
+const pi2 = pi * 2
+const h_pi = pi / 2
+const hh_pi = pi / 4
 
 type PosCb = {
   start: [number, number],
   end: [number, number],
   dur: number,
+  twist?: (a: number) => number,
   update: (pos: [number, number]) => void,
   _value?: [number, number, number, number, number],
 }
@@ -244,22 +348,23 @@ class DragManager {
     this._up = undefined
     this._down = d
 
+    const dd = this.ds.find((dd) => distance(dd.q_pos(), d) < 1/16)
+    if (!dd) {
+      return
+    }
+
+    this.d = dd
+    this.d.on_down(d)
+
     setTimeout(() => {
 
-      let dd = this.ds.find((dd) => distance(dd.q_pos(), d) < 1/16)
-      if (!dd) {
-        return
-      }
-      this.d = dd
       if (this._up) {
         dd.on_click(this._up)
         this._move = undefined
         this._down = undefined
         this.d = undefined
       } else if (this._move) {
-        this.d.on_drag(this._move)
-      } else {
-        this.d.on_down(d)
+        dd.on_drag(this._move)
       }
     }, 120)
   }
@@ -325,8 +430,13 @@ class AnimationManager {
 
             let alpha = ease(v._value[4] / v.dur)
 
-            v._value[2] = v.end[0] * alpha - v.start[0] * (1 - alpha)
-            v._value[3] = v.end[1] * alpha - v.start[1] * (1 - alpha)
+            if (v.twist) {
+              alpha = v.twist(alpha)
+            }
+
+            v._value[2] = v.end[0] * alpha + v.start[0] * (1 - alpha)
+            v._value[3] = v.end[1] * alpha + v.start[1] * (1 - alpha)
+
           }
         })
 
@@ -337,7 +447,14 @@ class AnimationManager {
             v._value![2] * alpha + v._value![0] * (1 - alpha),
             v._value![3] * alpha + v._value![1] * (1 - alpha)]))
 
+
+            if (self.ps[0]) {
+              //console.log(self.ps[0]._value)
+            }
         self.ps = self.ps.filter(v => v._value![4] < v.dur)
+        if (self.ps.length == 0) {
+          setTimeout(() => { if (self.ps.length == 0) { self.gaffer_cancel?.() }})
+        }
       }
     }
   }
@@ -349,11 +466,13 @@ class AnimationManager {
     })
     this.gaffer_cancel?.()
     this.ps = []
+    this.gaffer_cancel = undefined
   }
 
   cancel() {
     this.gaffer_cancel?.()
     this.ps = []
+    this.gaffer_cancel = undefined
   }
 
   pause() {
@@ -362,6 +481,7 @@ class AnimationManager {
 
   resume() {
     if (this.ps.length > 0) {
+      this.gaffer_cancel?.()
       this.gaffer_cancel = gaffer_loop(this._g())
     }
   }
@@ -416,7 +536,6 @@ function distance(a: [number, number], b: [number, number]) {
   let x2 = b[0], y2 = b[1]
 
   let dx = x2 - x, dy = y2 - y
-
   return Math.sqrt(dx * dx + dy * dy)
 }
 
@@ -430,6 +549,12 @@ function main(el: HTMLElement) {
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === 'f') {
       ss.flip()
+    }
+    if (ev.key === 'r') {
+      ss.random()
+    }
+    if (ev.key === 's') {
+      ss.shake()
     }
   })
 
