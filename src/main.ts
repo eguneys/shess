@@ -8,6 +8,7 @@ interface UserEx {
   random: () => void;
   shake: () => void;
   snap: () => void;
+  fen: (fen: string) => void
 }
 
 class Shess implements UserEx {
@@ -16,6 +17,7 @@ class Shess implements UserEx {
 
     const Anims = new AnimationManager()
     const Drags = new DragManager()
+    const Fens = new FenManager()
   
     let ss = document.createElement('shess')
     ss.classList.add('is2d')
@@ -48,7 +50,8 @@ class Shess implements UserEx {
         flip,
         random() {},
         shake() {},
-        snap() {}
+        snap() {},
+        fen() {}
       }
   
     })
@@ -81,7 +84,8 @@ class Shess implements UserEx {
         flip,
         random() {},
         shake() {},
-        snap() {}
+        snap() {},
+        fen() {}
       }
     })
   
@@ -119,16 +123,6 @@ class Shess implements UserEx {
 
       const translate = (pos: [number, number]) => {
         _pos = pos
-        _transform()
-      }
-
-      const scale = (s: number) => {
-        _scale = s
-        _transform()
-      }
-
-      const rotate = (r: number) => {
-        _angle = r
         _transform()
       }
 
@@ -177,16 +171,21 @@ class Shess implements UserEx {
         })
       }
 
+      Fens.push({
+        q_ch: () => ([p, [_pos[0] * 8, _pos[1] * 8]]),
+        translate: function (_pos: [number, number]): void {
+          _pos = [(_pos[0] - 1) / 8, (_pos[1] - 1) /8]
+          t20(_pos)
+        }
+      })
 
       Drags.push({
         q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
         on_click: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-          console.log(role)
         },
         on_hover: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-          //console.log(role)
         },
         on_down: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
@@ -234,12 +233,18 @@ class Shess implements UserEx {
         t20([snap_1h8(_pos[0]), snap_1h8(_pos[1])])
       }
 
+      const fen = (_fen: string) => {
+
+        console.log(_fen)
+      }
+
       return {
         init,
         flip,
         random,
         shake,
-        snap
+        snap,
+        fen
       }
      })
 
@@ -305,12 +310,22 @@ class Shess implements UserEx {
       ux_pieces.forEach(_ => _.snap())
     }
 
+    const fen = (fen: string) => {
+      ux_files.forEach(_ => _.fen(fen))
+      ux_ranks.forEach(_ => _.fen(fen))
+      ux_pieces.forEach(_ => _.fen(fen))
+
+
+      Fens.fen(fen)
+    }
+
     let ux = {
       init,
       flip,
       random,
       shake,
-      snap
+      snap,
+      fen
     }
 
 
@@ -339,12 +354,83 @@ class Shess implements UserEx {
   snap() {
     this.ux.snap()
   }
+
+  fen(fen: string) {
+    this.ux.fen(fen)
+  }
 }
 
+type FenCb = {
+  q_ch: () => [string, [number, number]],
+  translate: (p: [number, number]) => void
+}
+
+class FenManager {
+
+  ps: FenCb[] = []
+
+  push(p: FenCb) {
+    this.ps.push(p)
+  }
+
+  fen(fen: string) {
+
+    let needs: [string, [number, number]][] = []
+
+    let [pieces] = fen.split(' ')
+
+    pieces.split('/').forEach((ps: string, irank: number) => {
+      irank += 1
+      let ifile = 1
+      for (let ch of ps) {
+
+        if ('RNBQKPrnbqkp'.includes(ch)) {
+
+          needs.push([ch, [ifile, irank]])
+
+          ifile += 1
+        } else if ('12345678'.includes(ch)) {
+          ifile += parseInt(ch)
+        }
+      }
+    })
+
+    let moves: [FenCb, [string, [number, number]]][] = []
+
+    let has = this.ps.slice(0)
+
+    needs.forEach(n => {
+
+      let p_min, min = 88
+
+      has.forEach((_) => {
+        let e = _.q_ch()
+        if (n[0] === e[0]) {
+          let v = distance(n[1], e[1])
+          if (v < min) {
+            min = v
+            p_min = _
+          }
+        }
+      })
+
+      if (p_min) {
+        has.splice(has.indexOf(p_min), 1)
+        moves.push([p_min, n])
+      }
+    })
+
+
+    moves.forEach(([p, n]) => {
+      p.translate(n[1])
+    })
+
+  }
+}
+
+
 const pi = Math.PI
-const pi2 = pi * 2
 const h_pi = pi / 2
-const hh_pi = pi / 4
 
 type PosCb = {
   start: [number, number],
@@ -474,11 +560,6 @@ class AnimationManager {
           v.update([
             v._value![2] * alpha + v._value![0] * (1 - alpha),
             v._value![3] * alpha + v._value![1] * (1 - alpha)]))
-
-
-            if (self.ps[0]) {
-              //console.log(self.ps[0]._value)
-            }
         self.ps = self.ps.filter(v => v._value![4] < v.dur)
         if (self.ps.length == 0) {
           setTimeout(() => { if (self.ps.length == 0) { self.gaffer_cancel?.() }})
@@ -568,6 +649,7 @@ function distance(a: [number, number], b: [number, number]) {
 }
 
 
+const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
 function main(el: HTMLElement) {
 
@@ -575,6 +657,11 @@ function main(el: HTMLElement) {
   el.appendChild(ss.el)
 
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
+    if (ev.key == ' ') {
+      ss.fen(INITIAL_FEN)
+      ev.preventDefault()
+      return false
+    }
     if (ev.key === 'f') {
       ss.flip()
     }
