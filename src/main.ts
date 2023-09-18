@@ -7,6 +7,7 @@ interface UserEx {
   flip: () => void;
   random: () => void;
   shake: () => void;
+  snap: () => void;
 }
 
 class Shess implements UserEx {
@@ -46,7 +47,8 @@ class Shess implements UserEx {
         init() {},
         flip,
         random() {},
-        shake() {}
+        shake() {},
+        snap() {}
       }
   
     })
@@ -78,7 +80,8 @@ class Shess implements UserEx {
         init() {},
         flip,
         random() {},
-        shake() {}
+        shake() {},
+        snap() {}
       }
     })
   
@@ -86,7 +89,7 @@ class Shess implements UserEx {
   
 
     let pieces = 'RNBQKBNRPPPPPPPPrnbqkbnrpppppppp'
-    pieces = 'R'
+    //pieces = 'R'
     let ux_pieces: UserEx[] = pieces.split('').map((p: string) => {
       let color = p.toUpperCase() === p ? 'white' : 'black'
       let role = 'pawn'
@@ -201,7 +204,7 @@ class Shess implements UserEx {
       board.appendChild(pce)
 
       const init = () => {
-        t20([Math.random(), Math.random()])
+        random()
       }
 
       const flip = () => {
@@ -209,19 +212,34 @@ class Shess implements UserEx {
       }
 
       const random = () => {
-        t20([Math.random(), Math.random()])
+        t20([Math.random() * (1 - 1/8), Math.random() * (1 - 1/8)])
       }
 
       const shake = () => {
         s10()
       }
 
+      const snap_1h8 = (v: number) => {
+        let dx = v % (1/8)
+
+        if (dx < 1/8 - dx) {
+          return v - dx
+        } else {
+          return v + 1/8 - dx
+        }
+        return v + Math.min(dx, 1/8 - dx)
+      }
+
+      const snap = () => {
+        t20([snap_1h8(_pos[0]), snap_1h8(_pos[1])])
+      }
+
       return {
         init,
         flip,
         random,
-        shake
-
+        shake,
+        snap
       }
      })
 
@@ -281,13 +299,18 @@ class Shess implements UserEx {
       ux_pieces.forEach(_ => _.shake())
     }
 
-
+    const snap = () => {
+      ux_files.forEach(_ => _.snap())
+      ux_ranks.forEach(_ => _.snap())
+      ux_pieces.forEach(_ => _.snap())
+    }
 
     let ux = {
       init,
       flip,
       random,
-      shake
+      shake,
+      snap
     }
 
 
@@ -310,6 +333,11 @@ class Shess implements UserEx {
 
   shake() {
     this.ux.shake()
+  }
+
+
+  snap() {
+    this.ux.snap()
   }
 }
 
@@ -555,6 +583,9 @@ function main(el: HTMLElement) {
     }
     if (ev.key === 's') {
       ss.shake()
+    }
+    if (ev.key === 'e') {
+      ss.snap()
     }
   })
 
