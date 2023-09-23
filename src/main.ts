@@ -2,6 +2,225 @@ import './style.css'
 import './theme.css'
 import './kiwen-suwi.css'
 
+ 
+class Piece implements UserEx {
+
+  init() {}
+  flip() {}
+  random(){}
+  shake() {}
+  snap() {}
+  fen(fen: string) { console.log(fen)}
+
+  static init = (p: string) => {
+    let color = p.toUpperCase() === p ? 'white' : 'black'
+    let role = 'pawn'
+    switch (p.toUpperCase()) {
+      case "R": { role = "rook" } break;
+      case "N": { role = "knight" } break;
+      case "B": { role = "bishop" } break;
+      case "Q": { role = "queen" } break;
+      case "K": { role = "king" } break;
+      case "P": { role = "pawn" } break;
+    }
+
+    let pce = document.createElement('piece')
+    pce.classList.add(color, role)
+
+    let pcb: PieceCb;
+
+    let _pos: [number, number] = [0, 0],
+      _scale = 1,
+      _angle = 0
+
+    const _transform = () => {
+      pce.style.transform = `translate(${_pos[0] * 800}%, ${_pos[1] * 800}%) \
+      scale(${_scale}) \
+      rotate(${_angle}rad)`
+    }
+
+    const translate = (pos: [number, number]) => {
+      _pos = pos
+      _transform()
+    }
+
+    const scale_angle = (sr: [number, number]) => {
+      _scale = sr[0]
+      _angle = sr[1]
+      _transform()
+    }
+
+    const lerp_10 = (end: [number, number]) => {
+      Anims.cancel()
+      let a = 0.8
+      let t: [number, number] = [
+        _pos[0] * (1- a) + end[0] * a, 
+        _pos[1] * (1 - a) + end[1] * a]
+      translate(t)
+    }
+
+
+    const t60 = (end: [number, number]) => {
+      Anims.pos({
+        start: _pos,
+        end,
+        dur: 0.26,
+        update: translate
+      })
+    }
+    
+
+    const t20 = (end: [number, number]) => {
+      Anims.pos({
+        start: _pos,
+        end,
+        dur: 0.16,
+        update: translate
+      })
+    }
+    
+
+    let _s10: PosCb = {
+        start: [_scale, _angle],
+        end: [0.9, hhh_pi],
+        dur: 0.2,
+        update: scale_angle
+      }
+    const s10 = () => {
+      _s10.start = [_scale, _angle]
+      Scales.pos(_s10)
+    }
+
+    const s10_rev = () => {
+      Scales.cancel_one(_s10)
+      Scales.pos({
+        start: [_scale, _angle],
+        end: [1, 0],
+        dur: 0.1,
+        update: scale_angle
+      })
+    }
+
+    let q_ch: QCh = () => [p, [Math.ceil((_pos[0] + 0.5/8) * 8), Math.ceil((_pos[1] + 0.5/8) * 8)]]
+
+    let xs_cb = {
+      q_ch,
+      on_x_hover: function (): void {
+        s10()
+      },
+      on_x_hov_end: function(): void {
+        s10_rev()
+      },
+      on_x_drop: function (): void {
+        _on_drop()
+      }
+    }
+
+
+    let fs_cb = {
+      q_ch,
+      translate: function (_pos: [number, number]): void {
+        _pos = [(_pos[0] - 1) / 8, (_pos[1] - 1) / 8]
+        t20(_pos)
+      },
+      drop() {
+        _on_drop()
+      }
+    }
+
+    let ds_cb: DragCb = {
+      q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
+      on_click: function (_pos: [number, number]): void {
+        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+      },
+      on_hover: function (_pos: [number, number]): void {
+        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+      },
+      on_down: function (_pos: [number, number]): void {
+        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+        t20(_pos)
+
+        pce.classList.add('drag')
+      },
+      on_drag: function (_pos: [number, number]): void {
+        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+        lerp_10(_pos)
+        Xs.on_drag(xs_cb)
+      },
+      on_drop: function (_pos: [number, number]): void {
+        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+        pce.classList.remove('drag')
+        Xs.on_drop(xs_cb)
+      }
+    }
+
+    const init = () => {
+      random()
+    }
+
+    const flip = () => {
+      t60([7/8 - _pos[0], 7/8 - _pos[1]])
+    }
+
+    const random = () => {
+      t20([Math.random() * (1 - 1/8), Math.random() * (1 - 1/8)])
+    }
+
+    const shake = () => {
+      s10()
+    }
+
+    const snap_1h8 = (v: number) => {
+      let dx = v % (1/8)
+
+      if (dx < 1/8 - dx) {
+        return v - dx
+      } else {
+        return v + 1/8 - dx
+      }
+      return v + Math.min(dx, 1/8 - dx)
+    }
+
+    const snap = () => {
+      t20([snap_1h8(_pos[0]), snap_1h8(_pos[1])])
+      s10_rev()
+    }
+
+    const fen = (_fen: string) => {
+      console.log(_fen)
+    }
+
+    const _on_drop = () => {
+      Xs.pop(xs_cb)
+      Fens.pop(fs_cb)
+      Drags.pop(ds_cb)
+      Pieces.pop(pcb)
+    }
+
+    const _on_init = () => {
+      Xs.push(xs_cb)
+      Fens.push(fs_cb)
+      Drags.push(ds_cb)
+      Pieces.push(pcb)
+    }
+
+    pcb = {
+      el: pce,
+      init,
+      flip,
+      random,
+      shake,
+      snap,
+      fen
+    }
+
+    _on_init()
+  }
+
+}
+
+
+
 type RCb = {
   el: HTMLElement,
   flip: () => void
@@ -11,11 +230,14 @@ class RanksManager {
 
   ps: RCb[] = []
 
-  constructor(readonly ranks: HTMLElement) {
+  ranks: HTMLElement
 
+  constructor() {
+    this.ranks = document.createElement('ranks')
   }
 
   push(r: RCb) {
+    this.ps.push(r)
     this.ranks.appendChild(r.el)
   }
 
@@ -34,11 +256,14 @@ class FilesManager {
 
   ps: FCb[] = []
 
-  constructor(readonly files: HTMLElement) {
+  files: HTMLElement
 
+  constructor() {
+    this.files = document.createElement('files')
   }
 
   push(r: FCb) {
+    this.ps.push(r)
     this.files.appendChild(r.el)
   }
 
@@ -53,9 +278,30 @@ type PieceCb = UserEx & {
 }
 
 class PieceManager implements UserEx {
+
+  recycle: PieceCb[] = []
+
   ps: PieceCb[] = []
 
-  constructor(readonly board: HTMLElement) { }
+  board: HTMLElement
+
+  constructor() { 
+    this.board = document.createElement('board')
+  }
+
+  pop(pcb: PieceCb) {
+
+    let i = this.ps.indexOf(pcb)
+    if (i > -1) {
+      this.board.removeChild(pcb.el)
+      this.ps.splice(i, 1)
+    }
+  }
+
+  push(p: PieceCb) {
+    this.ps.push(p)
+    this.board.append(p.el)
+  }
 
   random() {
     this.ps.forEach(_ => _.random())
@@ -68,11 +314,6 @@ class PieceManager implements UserEx {
   }
   fen(fen: string) {
     this.ps.forEach(_ => _.fen(fen))
-  }
-
-  push(p: PieceCb) {
-    this.ps.push(p)
-    this.board.append(p.el)
   }
 
   init() {
@@ -97,26 +338,15 @@ class Shess implements UserEx {
 
   static init = (): Shess => {
 
-    const Scales = new AnimationManager()
-    const Anims = new AnimationManager()
-    const Drags = new DragManager()
-    const Fens = new FenManager()
-    const Xs = new CaptureManager()
-  
     let ss = document.createElement('shess')
     ss.classList.add('is2d')
-    let ranks = document.createElement('ranks')
-    let files = document.createElement('files')
-    let board = document.createElement('board')
+    let { ranks } = Ranks
+    let { files } = Files
+    let { board } = Pieces
   
     ss.appendChild(files)
     ss.appendChild(ranks)
     ss.appendChild(board)
-
-
-    const Ranks = new RanksManager(ranks)
-    const Files = new FilesManager(files)
-    const Pieces = new PieceManager(board)
 
 
     let bounds: DOMRect;
@@ -204,192 +434,11 @@ class Shess implements UserEx {
   
   
 
+    /*
     let pieces = 'RNBQKBNRPPPPPPPPrnbqkbnrpppppppp'
     //pieces = 'R'
-    pieces.split('').map((p: string) => {
-      let color = p.toUpperCase() === p ? 'white' : 'black'
-      let role = 'pawn'
-      switch (p.toUpperCase()) {
-        case "R": { role = "rook" } break;
-        case "N": { role = "knight" } break;
-        case "B": { role = "bishop" } break;
-        case "Q": { role = "queen" } break;
-        case "K": { role = "king" } break;
-        case "P": { role = "pawn" } break;
-      }
-
-      let pce = document.createElement('piece')
-
-      pce.classList.add(color, role)
-
-
-      let _pos: [number, number] = [0, 0],
-        _scale = 1,
-        _angle = 0
-
-      const _transform = () => {
-        pce.style.transform = `translate(${_pos[0] * 800}%, ${_pos[1] * 800}%) \
-        scale(${_scale}) \
-        rotate(${_angle}rad)`
-      }
-
-      const translate = (pos: [number, number]) => {
-        _pos = pos
-        _transform()
-      }
-
-      const scale_angle = (sr: [number, number]) => {
-        _scale = sr[0]
-        _angle = sr[1]
-        _transform()
-      }
-
-      const lerp_10 = (end: [number, number]) => {
-        Anims.cancel()
-        let a = 0.8
-        let t: [number, number] = [
-          _pos[0] * (1- a) + end[0] * a, 
-          _pos[1] * (1 - a) + end[1] * a]
-        translate(t)
-      }
-
-
-      const t60 = (end: [number, number]) => {
-       Anims.pos({
-               start: _pos,
-               end,
-               dur: 0.26,
-               update: translate
-             })
-      }
-      
-
-      const t20 = (end: [number, number]) => {
-       Anims.pos({
-               start: _pos,
-               end,
-               dur: 0.16,
-               update: translate
-             })
-      }
-      
-
-      let _s10: PosCb = {
-          start: [_scale, _angle],
-          end: [0.9, hhh_pi],
-          dur: 0.2,
-          update: scale_angle
-        }
-      const s10 = () => {
-        Scales.pos(_s10)
-      }
-
-      const s10_rev = () => {
-        Scales.cancel_one(_s10)
-        Scales.pos({
-          start: [_scale, _angle],
-          end: [1, 0],
-          dur: 0.1,
-          update: scale_angle
-        })
-      }
-
-      const q_ch = (): [string, [number, number]] => ([p, [(_pos[0] + 1) * 8, (_pos[1] + 1) * 8]])
-
-      let xs_cb = {
-        q_ch,
-        on_x_hover: function (): void {
-          s10()
-        },
-        on_x_hov_end: function(): void {
-          s10_rev()
-        },
-        on_x_drop: function (): void {
-          pce.classList.add('xx')
-        }
-      }
-      Xs.push(xs_cb);
-
-      Fens.push({
-        q_ch,
-        translate: function (_pos: [number, number]): void {
-          _pos = [(_pos[0] - 1) / 8, (_pos[1] - 1) /8]
-          t20(_pos)
-        }
-      })
-
-      Drags.push({
-        q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
-        on_click: function (_pos: [number, number]): void {
-          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-        },
-        on_hover: function (_pos: [number, number]): void {
-          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-        },
-        on_down: function (_pos: [number, number]): void {
-          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-          t20(_pos)
-
-          pce.classList.add('drag')
-        },
-        on_drag: function (_pos: [number, number]): void {
-          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-          lerp_10(_pos)
-          Xs.on_drag(xs_cb)
-        },
-        on_drop: function (_pos: [number, number]): void {
-          _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
-          pce.classList.remove('drag')
-          Xs.on_drop(xs_cb)
-        }
-      })
-
-
-      const init = () => {
-        random()
-      }
-
-      const flip = () => {
-        t60([7/8 - _pos[0], 7/8 - _pos[1]])
-      }
-
-      const random = () => {
-        t20([Math.random() * (1 - 1/8), Math.random() * (1 - 1/8)])
-      }
-
-      const shake = () => {
-        s10()
-      }
-
-      const snap_1h8 = (v: number) => {
-        let dx = v % (1/8)
-
-        if (dx < 1/8 - dx) {
-          return v - dx
-        } else {
-          return v + 1/8 - dx
-        }
-        return v + Math.min(dx, 1/8 - dx)
-      }
-
-      const snap = () => {
-        t20([snap_1h8(_pos[0]), snap_1h8(_pos[1])])
-      }
-
-      const fen = (_fen: string) => {
-        console.log(_fen)
-      }
-
-      Pieces.push({
-        el: pce,
-        init,
-        flip,
-        random,
-        shake,
-        snap,
-        fen
-      })
-     })
+    pieces.split('').map((p: string) => Piece.init(p))
+    */
 
     const init = () => {
       Pieces.init()
@@ -401,11 +450,10 @@ class Shess implements UserEx {
       Files.flip()
       Ranks.flip()
       Pieces.flip()
-
     }
 
     const random = () => { 
-      Pieces.snap()
+      Pieces.random()
     }
 
     const shake = () => { 
@@ -461,6 +509,8 @@ class Shess implements UserEx {
   }
 }
 
+type QCh = () => [string, [number, number]]
+
 type XCb = {
   q_ch: () => [string, [number, number]],
   on_x_hover: () => void,
@@ -472,6 +522,13 @@ class CaptureManager {
   ps: XCb[] = []
 
   _hovering?: XCb;
+
+  pop(p: XCb) {
+    let i = this.ps.indexOf(p)
+    if (i > -1) {
+      this.ps.splice(i, 1)
+    }
+  }
 
   push(p: XCb) {
     this.ps.push(p)
@@ -526,11 +583,20 @@ class CaptureManager {
 type FenCb = {
   q_ch: () => [string, [number, number]],
   translate: (p: [number, number]) => void
+  drop: () => void
 }
 
 class FenManager {
-
   ps: FenCb[] = []
+
+
+  pop(p: FenCb) {
+    let i = this.ps.indexOf(p)
+    if (i > -1) {
+      this.ps.splice(i, 1)
+    }
+  }
+
 
   push(p: FenCb) {
     this.ps.push(p)
@@ -562,27 +628,60 @@ class FenManager {
 
     let has = this.ps.slice(0)
 
-    needs.forEach(n => {
-
-      let p_min, min = 88
-
-      has.forEach((_) => {
-        let e = _.q_ch()
-        if (n[0] === e[0]) {
-          let v = distance(n[1], e[1])
-          if (v < min) {
-            min = v
-            p_min = _
-          }
-        }
-      })
-
-      if (p_min) {
-        has.splice(has.indexOf(p_min), 1)
-        moves.push([p_min, n])
+    let miss = needs.filter(n => {
+      let i = has.findIndex(h => h.q_ch()[0] === n[0])
+      if (i === -1) {
+        return true
+      } else {
+        has.splice(i, 1)
+        return false
       }
     })
 
+    miss.forEach(_ => Piece.init(_[0]))
+
+    has = this.ps.slice(0)
+
+    let run_again = true
+    while (run_again) {
+      run_again = false
+
+      let has_mins = needs.map(n => {
+
+        let p_min = has[0], min = 88
+
+        has.forEach((_) => {
+          let e = _.q_ch()
+          if (n[0] === e[0]) {
+            let v = distance(n[1], e[1])
+            if (v < min) {
+              min = v
+              p_min = _
+            }
+          }
+        })
+
+        return {n, p_min, min }
+      })
+
+      has_mins.sort((a, b) => a.min - b.min)
+
+      has_mins.forEach(({n, p_min }) => {
+        let i = has.indexOf(p_min)
+        if (i > -1) {
+          let i2 = needs.indexOf(n)
+          needs.splice(i2, 1)
+          has.splice(i, 1)
+          moves.push([p_min, n])
+        } else {
+          run_again = true
+        }
+      })
+    }
+
+    let xtras = has
+
+    xtras.forEach(_ => _.drop())
 
     moves.forEach(([p, n]) => {
       p.translate(n[1])
@@ -616,7 +715,6 @@ type DragCb = {
 }
 
 class DragManager {
-
   _down?: [number, number]
   _move?: [number, number]
   _up?: [number, number]
@@ -672,6 +770,14 @@ class DragManager {
 
   ds: DragCb[] = []
 
+
+
+  pop(p: DragCb) {
+    let i = this.ds.indexOf(p)
+    if (i > -1) {
+      this.ds.splice(i, 1)
+    }
+  }
 
   push(d: DragCb) {
     this.ds.push(d)
@@ -821,6 +927,18 @@ function distance(a: [number, number], b: [number, number]) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
+const Scales = new AnimationManager()
+const Anims = new AnimationManager()
+const Drags = new DragManager()
+const Fens = new FenManager()
+const Xs = new CaptureManager()
+
+const Ranks = new RanksManager()
+const Files = new FilesManager()
+const Pieces = new PieceManager()
+
+
+ 
 
 const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
@@ -830,7 +948,10 @@ function main(el: HTMLElement) {
   el.appendChild(ss.el)
 
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
-    if (ev.key == ' ') {
+    if (ev.key === '2') {
+      ss.fen('8/8/2k5/8/P2P4/8/8/7K b - - 0 1')
+    }
+    if (ev.key === ' ') {
       ss.fen(INITIAL_FEN)
       ev.preventDefault()
       return false
