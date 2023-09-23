@@ -2,6 +2,88 @@ import './style.css'
 import './theme.css'
 import './kiwen-suwi.css'
 
+type RCb = {
+  el: HTMLElement,
+  flip: () => void
+}
+
+class RanksManager {
+
+  ps: RCb[] = []
+
+  constructor(readonly ranks: HTMLElement) {
+
+  }
+
+  push(r: RCb) {
+    this.ranks.appendChild(r.el)
+  }
+
+  flip() {
+    this.ps.forEach(_ => _.flip())
+  }
+}
+
+
+type FCb = {
+  el: HTMLElement,
+  flip: () => void
+}
+
+class FilesManager {
+
+  ps: FCb[] = []
+
+  constructor(readonly files: HTMLElement) {
+
+  }
+
+  push(r: FCb) {
+    this.files.appendChild(r.el)
+  }
+
+  flip() {
+    this.ps.forEach(_ => _.flip())
+  }
+}
+
+
+type PieceCb = UserEx & {
+  el: HTMLElement
+}
+
+class PieceManager implements UserEx {
+  ps: PieceCb[] = []
+
+  constructor(readonly board: HTMLElement) { }
+
+  random() {
+    this.ps.forEach(_ => _.random())
+  }
+  shake() {
+    this.ps.forEach(_ => _.shake())
+  }
+  snap() {
+    this.ps.forEach(_ => _.snap())
+  }
+  fen(fen: string) {
+    this.ps.forEach(_ => _.fen(fen))
+  }
+
+  push(p: PieceCb) {
+    this.ps.push(p)
+    this.board.append(p.el)
+  }
+
+  init() {
+    this.ps.forEach(_ => _.init())
+  }
+
+  flip() {
+    this.ps.forEach(_ => _.flip())
+  }
+}
+
 interface UserEx {
   init: () => void;
   flip: () => void;
@@ -15,21 +97,62 @@ class Shess implements UserEx {
 
   static init = (): Shess => {
 
+    const Scales = new AnimationManager()
     const Anims = new AnimationManager()
     const Drags = new DragManager()
     const Fens = new FenManager()
+    const Xs = new CaptureManager()
   
     let ss = document.createElement('shess')
     ss.classList.add('is2d')
-  
     let ranks = document.createElement('ranks')
-    let ux_ranks: UserEx[] = '12345678'.split('').map((r: string) => {
+    let files = document.createElement('files')
+    let board = document.createElement('board')
+  
+    ss.appendChild(files)
+    ss.appendChild(ranks)
+    ss.appendChild(board)
+
+
+    const Ranks = new RanksManager(ranks)
+    const Files = new FilesManager(files)
+    const Pieces = new PieceManager(board)
+
+
+    let bounds: DOMRect;
+
+    const on_bounds = () => {
+      bounds = board.getBoundingClientRect()
+    }
+    on_bounds()
+    
+    window.addEventListener('resize', on_bounds)
+    window.addEventListener('scroll', on_bounds)
+
+    
+    function norm_ev_position(ev: MouseEvent): [number, number] {
+      return [(ev.clientX - bounds.left) / bounds.width, (ev.clientY - bounds.top) / bounds.height]
+    }
+
+
+    const on_mouse_move = (_p: [number, number]) => { Drags.move = _p }
+    const on_mouse_down = (_p: [number, number]) => { Drags.down = _p }
+    const on_mouse_up = (_p: [number, number]) => { Drags.up = _p }
+
+    document.addEventListener('mousemove', (ev: MouseEvent) => on_mouse_move(norm_ev_position(ev)))
+    document.addEventListener('mousedown', (ev: MouseEvent) => on_mouse_down(norm_ev_position(ev)))
+    document.addEventListener('mouseup', (ev: MouseEvent) => on_mouse_up(norm_ev_position(ev)))
+
+
+
+
+
+    '12345678'.split('').map((r: string) => {
       let s = document.createElement('rank')
       let t = document.createTextNode(r)
       s.appendChild(t)
   
-      ranks.appendChild(s)
-  
+ 
       const flip = () => {
         switch (r) {
           case "1": { r = "8" } break;
@@ -45,23 +168,18 @@ class Shess implements UserEx {
         t.textContent = r
       }
 
-      return {
-        init() {},
-        flip,
-        random() {},
-        shake() {},
-        snap() {},
-        fen() {}
-      }
+      Ranks.push({
+        el: s,
+        flip
+      })
   
     })
   
-    let files = document.createElement('files')
-    let ux_files: UserEx[] = 'abcdefgh'.split('').map((f: string) => {
+    'abcdefgh'.split('').map((f: string) => {
       let s = document.createElement('file')
       let t = document.createTextNode(f)
       s.appendChild(t)
-      files.appendChild(s)
+
   
       const flip = () => {
         switch (f) {
@@ -78,23 +196,17 @@ class Shess implements UserEx {
         t.textContent = f
       }
 
-
-      return {
-        init() {},
-        flip,
-        random() {},
-        shake() {},
-        snap() {},
-        fen() {}
-      }
+      Files.push({
+        el: s,
+        flip
+      })
     })
   
-    let board = document.createElement('board')
   
 
     let pieces = 'RNBQKBNRPPPPPPPPrnbqkbnrpppppppp'
     //pieces = 'R'
-    let ux_pieces: UserEx[] = pieces.split('').map((p: string) => {
+    pieces.split('').map((p: string) => {
       let color = p.toUpperCase() === p ? 'white' : 'black'
       let role = 'pawn'
       switch (p.toUpperCase()) {
@@ -134,7 +246,7 @@ class Shess implements UserEx {
 
       const lerp_10 = (end: [number, number]) => {
         Anims.cancel()
-        let a = 0.3
+        let a = 0.8
         let t: [number, number] = [
           _pos[0] * (1- a) + end[0] * a, 
           _pos[1] * (1 - a) + end[1] * a]
@@ -161,18 +273,45 @@ class Shess implements UserEx {
              })
       }
       
-      const s10 = () => {
-        Anims.pos({
+
+      let _s10: PosCb = {
           start: [_scale, _angle],
-          end: [_scale, _angle + h_pi],
-          dur: 0.6,
-          twist: (a: number) => Math.sin(a * h_pi),
+          end: [0.9, hhh_pi],
+          dur: 0.2,
+          update: scale_angle
+        }
+      const s10 = () => {
+        Scales.pos(_s10)
+      }
+
+      const s10_rev = () => {
+        Scales.cancel_one(_s10)
+        Scales.pos({
+          start: [_scale, _angle],
+          end: [1, 0],
+          dur: 0.1,
           update: scale_angle
         })
       }
 
+      const q_ch = (): [string, [number, number]] => ([p, [(_pos[0] + 1) * 8, (_pos[1] + 1) * 8]])
+
+      let xs_cb = {
+        q_ch,
+        on_x_hover: function (): void {
+          s10()
+        },
+        on_x_hov_end: function(): void {
+          s10_rev()
+        },
+        on_x_drop: function (): void {
+          pce.classList.add('xx')
+        }
+      }
+      Xs.push(xs_cb);
+
       Fens.push({
-        q_ch: () => ([p, [_pos[0] * 8, _pos[1] * 8]]),
+        q_ch,
         translate: function (_pos: [number, number]): void {
           _pos = [(_pos[0] - 1) / 8, (_pos[1] - 1) /8]
           t20(_pos)
@@ -190,17 +329,21 @@ class Shess implements UserEx {
         on_down: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
           t20(_pos)
+
+          pce.classList.add('drag')
         },
         on_drag: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
           lerp_10(_pos)
+          Xs.on_drag(xs_cb)
         },
         on_drop: function (_pos: [number, number]): void {
           _pos = [_pos[0] - 0.5/ 8, _pos[1] - 0.5/8]
+          pce.classList.remove('drag')
+          Xs.on_drop(xs_cb)
         }
       })
 
-      board.appendChild(pce)
 
       const init = () => {
         random()
@@ -234,88 +377,46 @@ class Shess implements UserEx {
       }
 
       const fen = (_fen: string) => {
-
         console.log(_fen)
       }
 
-      return {
+      Pieces.push({
+        el: pce,
         init,
         flip,
         random,
         shake,
         snap,
         fen
-      }
+      })
      })
 
-
-  
-    ss.appendChild(files)
-    ss.appendChild(ranks)
-    ss.appendChild(board)
-
-    let bounds: DOMRect;
-
-    const on_bounds = () => {
-      bounds = board.getBoundingClientRect()
-    }
-    on_bounds()
-    
-    window.addEventListener('resize', on_bounds)
-    window.addEventListener('scroll', on_bounds)
-
-    
-    function norm_ev_position(ev: MouseEvent): [number, number] {
-      return [(ev.clientX - bounds.left) / bounds.width, (ev.clientY - bounds.top) / bounds.height]
-    }
-
-
-    const on_mouse_move = (_p: [number, number]) => { Drags.move = _p }
-    const on_mouse_down = (_p: [number, number]) => { Drags.down = _p }
-    const on_mouse_up = (_p: [number, number]) => { Drags.up = _p }
-
-    document.addEventListener('mousemove', (ev: MouseEvent) => on_mouse_move(norm_ev_position(ev)))
-    document.addEventListener('mousedown', (ev: MouseEvent) => on_mouse_down(norm_ev_position(ev)))
-    document.addEventListener('mouseup', (ev: MouseEvent) => on_mouse_up(norm_ev_position(ev)))
-
     const init = () => {
-      ux_files.forEach(_ => _.init())
-      ux_ranks.forEach(_ => _.init())
-      ux_pieces.forEach(_ => _.init())
+      Pieces.init()
       on_bounds()
     }
 
     const flip = () => {
       Anims.imm_end()
-      ux_files.forEach(_ => _.flip())
-      ux_ranks.forEach(_ => _.flip())
-      ux_pieces.forEach(_ => _.flip())
+      Files.flip()
+      Ranks.flip()
+      Pieces.flip()
+
     }
 
-    const random = () => {
-      ux_files.forEach(_ => _.random())
-      ux_ranks.forEach(_ => _.random())
-      ux_pieces.forEach(_ => _.random())
+    const random = () => { 
+      Pieces.snap()
     }
 
-    const shake = () => {
-      ux_files.forEach(_ => _.shake())
-      ux_ranks.forEach(_ => _.shake())
-      ux_pieces.forEach(_ => _.shake())
+    const shake = () => { 
+      Pieces.shake()
     }
 
     const snap = () => {
-      ux_files.forEach(_ => _.snap())
-      ux_ranks.forEach(_ => _.snap())
-      ux_pieces.forEach(_ => _.snap())
-    }
+      Pieces.snap()
+     }
 
     const fen = (fen: string) => {
-      ux_files.forEach(_ => _.fen(fen))
-      ux_ranks.forEach(_ => _.fen(fen))
-      ux_pieces.forEach(_ => _.fen(fen))
-
-
       Fens.fen(fen)
     }
 
@@ -358,6 +459,68 @@ class Shess implements UserEx {
   fen(fen: string) {
     this.ux.fen(fen)
   }
+}
+
+type XCb = {
+  q_ch: () => [string, [number, number]],
+  on_x_hover: () => void,
+  on_x_drop: () => void
+  on_x_hov_end: () => void
+}
+
+class CaptureManager {
+  ps: XCb[] = []
+
+  _hovering?: XCb;
+
+  push(p: XCb) {
+    this.ps.push(p)
+  }
+
+
+  on_drag(p: XCb) {
+    let _hovering;
+
+    for (let x of this.ps) {
+      if (x === p) { continue }
+
+      if (distance(p.q_ch()[1], x.q_ch()[1]) < 0.5) {
+        _hovering = x
+        break;
+      }
+    }
+
+    if (_hovering) {
+      if (this._hovering) {
+        if (this._hovering != _hovering) {
+          this._hovering.on_x_hov_end()
+          this._hovering = _hovering
+        }
+      } else {
+        this._hovering = _hovering
+        this._hovering.on_x_hover()
+      }
+    } else {
+      if (this._hovering) {
+        this._hovering.on_x_hov_end()
+        this._hovering = undefined
+      }
+    }
+  }
+
+  on_drop(p: XCb) {
+    for (let x of this.ps) {
+      if (x === p) { continue }
+
+      if (distance(p.q_ch()[1], x.q_ch()[1]) < 0.5) {
+        x.on_x_drop()
+        break;
+      }
+    }
+
+  }
+
+
 }
 
 type FenCb = {
@@ -430,7 +593,9 @@ class FenManager {
 
 
 const pi = Math.PI
-const h_pi = pi / 2
+//const h_pi = pi / 2
+//const hh_pi = pi / 4
+const hhh_pi = pi / 6
 
 type PosCb = {
   start: [number, number],
@@ -576,6 +741,14 @@ class AnimationManager {
     this.gaffer_cancel?.()
     this.ps = []
     this.gaffer_cancel = undefined
+  }
+
+  cancel_one(p: PosCb) {
+    let i = this.ps.indexOf(p)
+    if (i > -1) {
+      p.update(p.end)
+      this.ps.splice(i, 1)
+    }
   }
 
   cancel() {

@@ -53,4 +53,21 @@ board > piece {
   width: calc(100%/8);
   aspect-ratio: 1/1;
   background-size: cover;
+  transition:cubic-bezier(1, 0, 0, 1);
+}
+
+piece.drag {
+  z-index: 1;
+}
+
+piece.white.drag {
+  filter: drop-shadow(2px 2px 2px black);
+}
+piece.black.drag {
+  filter: drop-shadow(2px 2px 2px lightyellow);
+}
+
+
+piece.xx {
+  opacity: 0;
 }
