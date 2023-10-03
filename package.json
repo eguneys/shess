@@ -5,6 +5,7 @@
   "type": "module",
   "files": ["dist"],
   "module": "./dist/shess.js",
+  "types": "./dist/lib.d.ts",
   "scripts": {
     "dev": "vite --host --port=3000",
     "build": "vite build && tsc --declaration --emitDeclarationOnly --declarationDir dist",
