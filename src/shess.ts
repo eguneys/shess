@@ -116,7 +116,7 @@ class Circle {
     on_color(brush)
 
     const get_export = (): CircleExport => {
-      return [pos, brush[0]]
+      return [pos.map(_ => Math.floor(_ * 8)) as XY, brush[0]]
     }
 
     return new Circle(svg, get_export)
@@ -199,7 +199,9 @@ class Arrow {
       if (typeof pull_pos === 'function' || typeof pull_brush === 'function') {
         return [[0, 0, 0, 0], 'green']
       }
-      return [pull_pos, pull_brush[0]]
+      let xy = snap_u_coord([pull_pos[0], pull_pos[1]])
+      let xy2 = snap_u_coord([pull_pos[2], pull_pos[3]])
+      return [[...xy, ...xy2], pull_brush[0]]
     }
 
     return new Arrow(svg, get_export)
@@ -312,6 +314,8 @@ class ArrowManager {
       snap_arrows.clear()
 
       snap_circles.clear()
+
+      push_arrows()
     }
 
      

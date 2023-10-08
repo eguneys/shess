@@ -9,6 +9,10 @@ function main(el: HTMLElement) {
   let ss = Shess.init()
   el.appendChild(ss.el)
 
+  ss.pull_arrows(ac => {
+    console.log(ac.circles)
+  })
+
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === '2') {
       ss.fen('8/8/2k5/8/P2P4/8/8/7K b - - 0 1')
