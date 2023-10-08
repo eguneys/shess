@@ -1,3 +1,331 @@
+const arr_eq = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[1] === b[1]
+const snap_u_coord = (u: [number, number]): [number, number] => [
+  Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))), 
+  Math.max(0, Math.min(7, Math.floor(u[1] / (1/8))))]
+
+const get_color_from_modifiers = () => {
+  if (Modifiers.ctrl) {
+    return 'red'
+  } else if (Modifiers.shift) {
+    return 'blue'
+  } else if (Modifiers.alt) {
+    return 'yellow'
+  } else {
+    return 'green'
+  }
+}
+
+type DrawCB = {
+  on_down: (x: number, y: number) => void,
+  on_down_end: (x: number, y: number) => void,
+  on_move: (x: number, y: number, x2: number, y2: number) => void
+  on_move_end: (x: number, y: number, x2: number, y2: number) => void
+}
+
+class DrawManager {
+
+  _down?: [number, number]
+  _move?: [number, number]
+  _up?: [number, number]
+
+  set down(d: [number, number]) {
+    this._up = undefined
+    this._down = d
+
+    this.d.on_down(d[0], d[1])
+  }
+
+  set move(m: [number, number]) {
+    if (!this._down) {
+      return
+    }
+    if (arr_eq(snap_u_coord(this._down), snap_u_coord(m))) {
+      return
+    }
+    this._move = m
+    if (this._down && this._move) {
+      this.d.on_move(this._down[0], this._down[1], this._move[0], this._move[1])
+    }
+  }
+
+  set up(u: [number, number]) {
+    if (this._down && this._move) {
+      this.d.on_move_end(this._down[0], this._down[1], this._move[0], this._move[1])
+    } else {
+      this.d.on_down_end(u[0], u[1])
+    }
+    this._up = u
+    this._move = undefined
+    this._down = undefined
+  }
+
+  d!: DrawCB
+}
+
+
+function calculate_arrow_head(x1: number, y1: number, x2: number, y2: number) {
+
+  let dir_x = x2 - x1
+  let dir_y = y2 - y1
+
+  let length = Math.sqrt(dir_x * dir_x + dir_y * dir_y)
+
+  let u_dirx = dir_x / length
+  let u_diry = dir_y / length
+
+  let w = 1.6
+
+  let p_x = -u_diry * w * 0.66
+  let p_y = u_dirx * w * 0.66
+
+  let a = [x2 + p_x, y2 + p_y]
+  let b = [x2 - p_x, y2 - p_y]
+
+  let c = [x2 + u_dirx * w, y2 + u_diry * w]
+
+  return `${a[0]},${a[1]} ${b[0]},${b[1]} ${c[0]},${c[1]}`
+}
+
+type TPull<T> = (cb: (_: T) => void) => void
+type XY = [number, number]
+type XYXY2 = [number, number, number, number]
+type Brush = [string, number]
+
+class Circle {
+  static init = (pos: XY, brush: Brush) => {
+    let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    svg.setAttribute("width", "100%")
+    svg.setAttribute("height", "100%")
+    svg.setAttribute("viewBox", "0 0 100 100")
+
+    let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+    svg.appendChild(circle)
+    circle.setAttribute("fill", 'none')
+
+    function on_update([x1, y1]: number[])  {
+      circle.setAttribute("cx", `${x1 * 100}`)
+      circle.setAttribute("cy", `${y1 * 100}`)
+      circle.setAttribute("r", `${100/16 - 1}`)
+    }
+
+    function on_color([color, width]: [string, number]) {
+      circle.setAttribute("stroke", color)
+      circle.setAttribute("stroke-width", `${width}`)
+    }
+    on_update(pos)
+    on_color(brush)
+
+    return new Circle(svg)
+  }
+
+
+  constructor(readonly svg: SVGElement) {}
+}
+
+class Arrow {
+
+  static init = (pull_pos: XYXY2 | TPull<XYXY2>, pull_brush: Brush | TPull<Brush>) => {
+    let svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    svg.setAttribute("width", "100%")
+    svg.setAttribute("height", "100%")
+    svg.setAttribute("viewBox", "0 0 100 100")
+
+    let line = document.createElementNS("http://www.w3.org/2000/svg", "line")
+    svg.appendChild(line)
+
+    let head = document.createElementNS("http://www.w3.org/2000/svg", "polygon")
+    svg.appendChild(head)
+
+    function on_update([x1, y1, x2, y2]: number[])  {
+      line.setAttribute("x1", `${x1 * 100}`)
+      line.setAttribute("y1", `${y1 * 100}`)
+      line.setAttribute("x2", `${x2 * 100}`)
+      line.setAttribute("y2", `${y2 * 100}`)
+
+
+      head.setAttribute("points", calculate_arrow_head(x1 * 100, y1 * 100, x2 * 100, y2 * 100))
+    }
+
+    function on_color([color, width]: [string, number]) {
+      line.setAttribute("stroke", color)
+      line.setAttribute("stroke-width", `${width}`)
+
+      head.setAttribute("stroke", color)
+      head.setAttribute("stroke-width", `${width}`)
+    }
+
+    let _xyxy = [0, 0, 0, 0]
+    if (typeof pull_pos === 'function') {
+      pull_pos(on_update)
+    } else {
+      Anims.pos({
+        start: [pull_pos[0], pull_pos[1]],
+        end: snap_u_coord([pull_pos[0], pull_pos[1]]).map(_ => _/ 8 + 0.5/8) as [number, number],
+        dur: 0.26,
+        update: (([x, y]) => {
+          _xyxy[0] = x
+          _xyxy[1] = y
+
+          on_update(_xyxy)
+        })
+      })
+      Anims.pos({
+        start: [pull_pos[2], pull_pos[3]],
+        end: snap_u_coord([pull_pos[2], pull_pos[3]]).map(_ => _/ 8 + 0.5/8) as [number, number],
+        dur: 0.26,
+        update: (([x, y]) => {
+          _xyxy[2] = x
+          _xyxy[3] = y
+          on_update(_xyxy)
+        })
+      })
+    }
+
+    if (typeof pull_brush === 'function') {
+      pull_brush(on_color)
+    } else {
+      on_color(pull_brush)
+    }
+
+    return new Arrow(svg)
+  }
+
+
+  constructor(readonly svg: SVGElement) {}
+}
+
+class ArrowManager {
+  
+  static init = () => {
+    let el = document.createElement('arrows')
+
+    let circle: Circle | undefined
+
+    let in_dom = false
+    let on_xy: (_: XYXY2) => void
+    let on_brush: (_: Brush) => void
+    let arrow = Arrow.init(((cb: (_: XYXY2) => void) => {
+      on_xy = cb
+     }), ((cb: (_: Brush) => void) => on_brush = cb))
+    
+     let snap_arrows = new Map()
+     let snap_circles = new Map()
+    Draws.d = {
+      on_down(x, y) {
+        if (circle) {
+          circle.svg.remove()
+        }
+
+        circle = Circle.init([x, y], [get_color_from_modifiers(), 1])
+        el.appendChild(circle.svg)
+      },
+      on_down_end(x: number, y: number) {
+        if (circle) {
+          let key = snap_u_coord([x, y]).join('-')
+
+          if (snap_circles.has(key)) {
+            let a = snap_circles.get(key)
+            a.svg.remove()
+            snap_circles.delete(key)
+            push_arrows()
+          } else {
+  
+            let a = Circle.init(snap_u_coord([x, y]).map(_ => _/8 + 0.5/8) as XY, [get_color_from_modifiers(), 1.2])
+            el.appendChild(a.svg)
+            snap_circles.set(key, a)
+            push_arrows()
+          }
+  
+          circle.svg.remove()
+          circle = undefined
+        }
+  
+      },
+      on_move(x, y, x2, y2) {
+
+        if (circle) {
+          circle.svg.remove()
+          circle = undefined
+        }
+
+
+
+        if (!in_dom) {
+          el.appendChild(arrow.svg)
+          in_dom = true
+        }
+        on_xy?.([x, y, x2, y2])
+        on_brush([get_color_from_modifiers(), 1])
+      },
+      on_move_end(x, y, x2, y2) {
+        if (in_dom) {
+          arrow.svg.remove()
+          in_dom = false
+        }
+
+        let key = [...snap_u_coord([x, y]), ...snap_u_coord([x2, y2])].join('-')
+
+        if (snap_arrows.has(key)) {
+          let a = snap_arrows.get(key)
+          a.svg.remove()
+          snap_arrows.delete(key)
+          push_arrows()
+        } else {
+
+          let a = Arrow.init([x, y, x2, y2], [get_color_from_modifiers(), 1.21])
+          el.appendChild(a.svg)
+          snap_arrows.set(key, a)
+          push_arrows()
+        }
+
+      },
+    }
+
+    const on_clear = () => {
+      for (let v of snap_circles.values()) {
+        v.svg.remove()
+      }
+      for (let v of snap_arrows.values()) {
+        v.svg.remove()
+      }
+      snap_arrows.clear()
+
+      snap_circles.clear()
+    }
+
+     
+    let res = new ArrowManager(el, on_clear)
+
+
+    function push_arrows() {
+      let arrows = [...snap_arrows.values()]
+      let circles = [...snap_circles.values()]
+
+      res.push_arrows({ arrows, circles })
+    }
+
+    return res
+  }
+
+  pcbs: ((_: AAndC) => void)[] = []
+
+  pull_arrows(cb: (_: AAndC) => void) {
+    this.pcbs.push(cb)
+  }
+
+  push_arrows(ac: AAndC) {
+    this.pcbs.forEach(_ => _(ac))
+  }
+ 
+  clear() {
+    this.on_clear()
+  }
+
+  constructor(readonly el: HTMLElement, 
+    readonly on_clear: () => void) {}
+}
+
+
 class Piece implements UserEx {
 
   init() {}
@@ -6,6 +334,7 @@ class Piece implements UserEx {
   shake() {}
   snap() {}
   fen(fen: string) { console.log(fen)}
+  clear() {}
 
   static init = (p: string) => {
     let color = p.toUpperCase() === p ? 'white' : 'black'
@@ -206,7 +535,8 @@ class Piece implements UserEx {
       random,
       shake,
       snap,
-      fen
+      fen,
+      clear() {}
     }
 
     _on_init()
@@ -278,24 +608,24 @@ class PieceManager implements UserEx {
 
   ps: PieceCb[] = []
 
-  board: HTMLElement
+  pieces: HTMLElement
 
   constructor() { 
-    this.board = document.createElement('board')
+    this.pieces = document.createElement('pieces')
   }
 
   pop(pcb: PieceCb) {
 
     let i = this.ps.indexOf(pcb)
     if (i > -1) {
-      this.board.removeChild(pcb.el)
+      this.pieces.removeChild(pcb.el)
       this.ps.splice(i, 1)
     }
   }
 
   push(p: PieceCb) {
     this.ps.push(p)
-    this.board.append(p.el)
+    this.pieces.append(p.el)
   }
 
   random() {
@@ -318,6 +648,8 @@ class PieceManager implements UserEx {
   flip() {
     this.ps.forEach(_ => _.flip())
   }
+
+  clear() {}
 }
 
 interface UserEx {
@@ -327,6 +659,7 @@ interface UserEx {
   shake: () => void;
   snap: () => void;
   fen: (fen: string) => void
+  clear: () => void
 }
 
 export class Shess implements UserEx {
@@ -337,11 +670,16 @@ export class Shess implements UserEx {
     ss.classList.add('is2d')
     let { ranks } = Ranks
     let { files } = Files
-    let { board } = Pieces
+    let { pieces } = Pieces
   
     ss.appendChild(files)
     ss.appendChild(ranks)
+
+    let board = document.createElement('board')
     ss.appendChild(board)
+
+    board.appendChild(pieces)
+    board.appendChild(Arrows.el)
 
 
     let bounds: DOMRect;
@@ -360,17 +698,33 @@ export class Shess implements UserEx {
     }
 
 
-    const on_mouse_move = (_p: [number, number]) => { Drags.move = _p }
-    const on_mouse_down = (_p: [number, number]) => { Drags.down = _p }
-    const on_mouse_up = (_p: [number, number]) => { Drags.up = _p }
+    const on_mouse_move = (ev: MouseEvent, _p: [number, number]) => { 
+      Modifiers.ctrl = ev.ctrlKey
+      Modifiers.alt= ev.altKey
+      Modifiers.shift = ev.shiftKey
 
-    document.addEventListener('mousemove', (ev: MouseEvent) => on_mouse_move(norm_ev_position(ev)))
-    document.addEventListener('mousedown', (ev: MouseEvent) => on_mouse_down(norm_ev_position(ev)))
-    document.addEventListener('mouseup', (ev: MouseEvent) => on_mouse_up(norm_ev_position(ev)))
+      Drags.move = _p 
+      Draws.move = _p;
+    }
+    const on_mouse_down = (ev: MouseEvent, _p: [number, number]) => { 
+      Modifiers.ctrl = ev.ctrlKey
+      Modifiers.alt= ev.altKey
+      Modifiers.shift = ev.shiftKey
+      if (ev.button === 0) {
+        Drags.down = _p 
+      } else {
+        Draws.down = _p; 
+      }
+    }
+    const on_mouse_up = (_ev: MouseEvent, _p: [number, number]) => { 
+      Drags.up = _p 
+      Draws.up = _p; 
+    }
 
-
-
-
+    document.addEventListener('mousemove', (ev: MouseEvent) => on_mouse_move(ev, norm_ev_position(ev)))
+    document.addEventListener('mousedown', (ev: MouseEvent) => on_mouse_down(ev, norm_ev_position(ev)))
+    document.addEventListener('mouseup', (ev: MouseEvent) => on_mouse_up(ev, norm_ev_position(ev)))
+    document.addEventListener('contextmenu', (ev: MouseEvent) => ev.preventDefault())
 
     '12345678'.split('').map((r: string) => {
       let s = document.createElement('rank')
@@ -462,6 +816,9 @@ export class Shess implements UserEx {
     const fen = (fen: string) => {
       Fens.fen(fen)
     }
+    const clear = () => {
+      Arrows.clear()
+    }
 
     let ux = {
       init,
@@ -469,7 +826,8 @@ export class Shess implements UserEx {
       random,
       shake,
       snap,
-      fen
+      fen,
+      clear
     }
 
 
@@ -502,7 +860,19 @@ export class Shess implements UserEx {
   fen(fen: string) {
     this.ux.fen(fen)
   }
+
+  clear() {
+    this.ux.clear()
+  }
+
+
+  pull_arrows(cb: (_: AAndC) => void) {
+    Arrows.pull_arrows(cb)
+  }
 }
+
+//type PullT<T> = (cb: (_: T) => void) => void
+type AAndC = { arrows: XYXY2[], circles: XY[] }
 
 type QCh = () => [string, [number, number]]
 
@@ -922,6 +1292,15 @@ function distance(a: [number, number], b: [number, number]) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
+type Modifiers = {
+  ctrl: boolean,
+  shift: boolean,
+  alt: boolean
+}
+const Modifiers: Modifiers = { ctrl: false, alt: false, shift: false}
+
+const Draws = new DrawManager()
+const Arrows = ArrowManager.init()
 const Scales = new AnimationManager()
 const Anims = new AnimationManager()
 const Drags = new DragManager()

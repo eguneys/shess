@@ -30,6 +30,9 @@ function main(el: HTMLElement) {
     if (ev.key === 'e') {
       ss.snap()
     }
+    if (ev.key === 'q') {
+      ss.clear()
+    }
   })
 
   ss.init()
