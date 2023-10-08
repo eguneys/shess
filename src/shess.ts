@@ -115,11 +115,18 @@ class Circle {
     on_update(pos)
     on_color(brush)
 
-    return new Circle(svg)
+    const get_export = (): CircleExport => {
+      return [pos, brush[0]]
+    }
+
+    return new Circle(svg, get_export)
   }
 
+  get export() {
+    return this.get_export()
+  }
 
-  constructor(readonly svg: SVGElement) {}
+  constructor(readonly svg: SVGElement, readonly get_export: () => CircleExport) {}
 }
 
 class Arrow {
@@ -187,12 +194,26 @@ class Arrow {
       on_color(pull_brush)
     }
 
-    return new Arrow(svg)
+
+    const get_export = (): ArrowExport => {
+      if (typeof pull_pos === 'function' || typeof pull_brush === 'function') {
+        return [[0, 0, 0, 0], 'green']
+      }
+      return [pull_pos, pull_brush[0]]
+    }
+
+    return new Arrow(svg, get_export)
   }
 
+  get export() {
+    return this.get_export()
+  }
 
-  constructor(readonly svg: SVGElement) {}
+  constructor(readonly svg: SVGElement, readonly get_export: () => ArrowExport) {}
 }
+
+type ArrowExport = [XYXY2, string]
+type CircleExport = [XY, string]
 
 class ArrowManager {
   
@@ -208,8 +229,8 @@ class ArrowManager {
       on_xy = cb
      }), ((cb: (_: Brush) => void) => on_brush = cb))
     
-     let snap_arrows = new Map()
-     let snap_circles = new Map()
+     let snap_arrows = new Map<string, Arrow>()
+     let snap_circles = new Map<string, Circle>()
     Draws.d = {
       on_down(x, y) {
         if (circle) {
@@ -224,7 +245,7 @@ class ArrowManager {
           let key = snap_u_coord([x, y]).join('-')
 
           if (snap_circles.has(key)) {
-            let a = snap_circles.get(key)
+            let a = snap_circles.get(key)!
             a.svg.remove()
             snap_circles.delete(key)
             push_arrows()
@@ -266,7 +287,7 @@ class ArrowManager {
         let key = [...snap_u_coord([x, y]), ...snap_u_coord([x2, y2])].join('-')
 
         if (snap_arrows.has(key)) {
-          let a = snap_arrows.get(key)
+          let a = snap_arrows.get(key)!
           a.svg.remove()
           snap_arrows.delete(key)
           push_arrows()
@@ -298,8 +319,8 @@ class ArrowManager {
 
 
     function push_arrows() {
-      let arrows = [...snap_arrows.values()]
-      let circles = [...snap_circles.values()]
+      let arrows = [...snap_arrows.values()].map(_ => _.export)
+      let circles = [...snap_circles.values()].map(_ => _.export)
 
       res.push_arrows({ arrows, circles })
     }
@@ -872,7 +893,7 @@ export class Shess implements UserEx {
 }
 
 //type PullT<T> = (cb: (_: T) => void) => void
-type AAndC = { arrows: XYXY2[], circles: XY[] }
+type AAndC = { arrows: ArrowExport[], circles: CircleExport[] }
 
 type QCh = () => [string, [number, number]]
 
