@@ -13,6 +13,10 @@ function main(el: HTMLElement) {
     console.log(ac.circles)
   })
 
+  ss.pull_fen(fen => {
+    console.log(fen)
+  })
+
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === '2') {
       ss.fen('8/8/2k5/8/P2P4/8/8/7K b - - 0 1')

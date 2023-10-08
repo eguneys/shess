@@ -1,3 +1,23 @@
+
+class OrientsManager {
+
+  get lh() {
+    return this.hl.reverse()
+  }
+
+  get hl() {
+    return this._hl.slice(0)
+  }
+
+  private _hl = [8,7,6,5,4,3,2,1]
+
+  flip() {
+    this._hl.reverse()
+  }
+
+}
+
+
 const arr_eq = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[1] === b[1]
 const snap_u_coord = (u: [number, number]): [number, number] => [
   Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))), 
@@ -217,6 +237,8 @@ class Arrow {
 type ArrowExport = [XYXY2, string]
 type CircleExport = [XY, string]
 
+type Fen = string
+
 class ArrowManager {
   
   static init = () => {
@@ -334,6 +356,7 @@ class ArrowManager {
 
   pcbs: ((_: AAndC) => void)[] = []
 
+
   pull_arrows(cb: (_: AAndC) => void) {
     this.pcbs.push(cb)
   }
@@ -341,7 +364,8 @@ class ArrowManager {
   push_arrows(ac: AAndC) {
     this.pcbs.forEach(_ => _(ac))
   }
- 
+
+
   clear() {
     this.on_clear()
   }
@@ -469,7 +493,7 @@ class Piece implements UserEx {
     let fs_cb = {
       q_ch,
       translate: function (_pos: [number, number]): void {
-        _pos = [(_pos[0] - 1) / 8, (_pos[1] - 1) / 8]
+        _pos = [Math.floor((_pos[0] - 1)) / 8, Math.floor((_pos[1] - 1)) / 8]
         t20(_pos)
       },
       drop() {
@@ -497,9 +521,13 @@ class Piece implements UserEx {
         Xs.on_drag(xs_cb)
       },
       on_drop: function (_pos: [number, number]): void {
-        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+        //_pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+
+        t20(snap_u_coord(_pos).map(_ => (_/8)) as XY)
         pce.classList.remove('drag')
         Xs.on_drop(xs_cb)
+
+        Fens.push_fen()
       }
     }
 
@@ -821,6 +849,7 @@ export class Shess implements UserEx {
 
     const flip = () => {
       Anims.imm_end()
+      Orients.flip()
       Files.flip()
       Ranks.flip()
       Pieces.flip()
@@ -894,6 +923,12 @@ export class Shess implements UserEx {
   pull_arrows(cb: (_: AAndC) => void) {
     Arrows.pull_arrows(cb)
   }
+
+
+  pull_fen(cb: (_: Fen) => void) {
+    Fens.pull_fen(cb)
+  }
+
 }
 
 //type PullT<T> = (cb: (_: T) => void) => void
@@ -977,6 +1012,49 @@ type FenCb = {
 }
 
 class FenManager {
+
+  pfbs: ((_: Fen) => void)[] = []
+
+  pull_fen(cb: (_: Fen) => void) {
+    this.pfbs.push(cb)
+  }
+
+  push_fen() {
+    this.pfbs.forEach(_ => _(this.get_fen()))
+  }
+
+
+  get_fen() {
+
+    let { hl, lh } = Orients;
+
+    let res: string[] = []
+
+    let chs = this.ps.map(_ => _.q_ch())
+
+    hl.forEach(ri => {
+      let rr = ''
+      let ss = 0
+      lh.forEach(fi => {
+        let ch = chs.find(_ => arr_eq(_[1], [fi, ri]))
+
+        if (ch) {
+          let spaces = ss === 0 ? '' : ss
+          rr += spaces + ch[0]
+          ss = 0
+        } else {
+          ss++;
+        }
+      })
+      let spaces = ss === 0 ? '' : ss
+      res.push(rr + spaces)
+    })
+
+
+    return res.join('/')
+  }
+
+
   ps: FenCb[] = []
 
 
@@ -994,18 +1072,19 @@ class FenManager {
 
   fen(fen: string) {
 
+    let { hl, lh } = Orients;
+
     let needs: [string, [number, number]][] = []
 
     let [pieces] = fen.split(' ')
 
     pieces.split('/').forEach((ps: string, irank: number) => {
-      irank += 1
-      let ifile = 1
+      let ifile = 0
       for (let ch of ps) {
 
         if ('RNBQKPrnbqkp'.includes(ch)) {
 
-          needs.push([ch, [ifile, irank]])
+          needs.push([ch, [lh[ifile], hl[irank]]])
 
           ifile += 1
         } else if ('12345678'.includes(ch)) {
@@ -1221,6 +1300,11 @@ class AnimationManager {
           v.update([
             v._value![2] * alpha + v._value![0] * (1 - alpha),
             v._value![3] * alpha + v._value![1] * (1 - alpha)]))
+        let outs = self.ps.filter(v => v._value![4] >= v.dur)
+
+        outs.forEach(v =>
+          v.update([v._value![2], v._value![3]]))
+
         self.ps = self.ps.filter(v => v._value![4] < v.dur)
         if (self.ps.length == 0) {
           setTimeout(() => { if (self.ps.length == 0) { self.gaffer_cancel?.() }})
@@ -1335,9 +1419,7 @@ const Xs = new CaptureManager()
 const Ranks = new RanksManager()
 const Files = new FilesManager()
 const Pieces = new PieceManager()
-
-
- 
+const Orients = new OrientsManager()
 
 export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
