@@ -64,6 +64,7 @@ pieces > piece {
   aspect-ratio: 1/1;
   background-size: cover;
   transition:cubic-bezier(1, 0, 0, 1);
+  pointer-events: none;
 }
 
 piece.drag {
@@ -83,8 +84,7 @@ piece.xx {
 }
 
 
-arrows {
-  opacity: 0.7;
+arrows, dests {
   position: absolute;
   top: 0;
   left: 0;
@@ -92,6 +92,27 @@ arrows {
   height: 100%;
 }
 
+
+arrows {
+  opacity: 0.7;
+}
+
+
+pieces dest {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: center;
+  width: calc(100%/8);
+  aspect-ratio: 1/1;
+  background: radial-gradient(yellow 19%, rgba(0, 0, 0, 0) 20%);
+  transform: translate(-50%, -50%);
+  transition: cubic-bezier(0.215, 0.610, 0.355, 1) 0.06s;
+}
+
+pieces dest:hover {
+  background: radial-gradient(yellow 100%, rgba(0, 0, 0, 1) 20%);
+}
 
 arrows > svg {
   position: absolute;

@@ -1,3 +1,58 @@
+class DestHi {
+
+  static init = (d: XY) => {
+    let el = document.createElement('dest')
+
+    el.style.transform = `translate(${d[0] * 800}%, ${d[1] * 800}%)`
+
+    setTimeout(() => { el.classList.add('active') }, 0)
+
+    const on_remove = () => {
+      el.classList.remove('active')
+      if (el.classList.contains('full')) {
+
+        el.remove()
+      } else {
+        setTimeout(() => el.remove(), 200)
+      }
+    }
+
+    return new DestHi(el, d, on_remove)
+  }
+
+  constructor(readonly el: HTMLElement, readonly d: XY, readonly on_remove: () => void) {}
+}
+
+class DestsManager {
+  static init = () => {
+    return new DestsManager(Pieces.pieces)
+  }
+
+  his: DestHi[] = []
+
+  push_full(pos: XY) {
+    let x = this.his.find(_ => arr_eq(_.d, snap_u_pos(pos)))
+    x?.el.classList.add('full')
+    this.his.filter(_ => _ !== x).forEach(_ => _.el.classList.remove('full'))
+  }
+
+  push_his(dests: XY[]) {
+    let els = dests.map(d => {
+      let hi = DestHi.init([d[0] / 8, d[1] / 8] as XY)
+      this.his.push(hi)
+      return hi.el
+    })
+    this.el.prepend(...els)
+  }
+
+  clear() {
+    this.his.forEach(_ => _.on_remove())
+    this.his = []
+  }
+
+  constructor(readonly el: HTMLElement) {}
+}
+
 
 class OrientsManager {
 
@@ -22,6 +77,11 @@ const arr_eq = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[
 const snap_u_coord = (u: [number, number]): [number, number] => [
   Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))), 
   Math.max(0, Math.min(7, Math.floor(u[1] / (1/8))))]
+const snap_u_pos = (u: [number, number]): [number, number] => [
+  Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))) / 8, 
+  Math.max(0, Math.min(7, Math.floor(u[1] / (1/8)))) / 8]
+
+
 
 const get_color_from_modifiers = () => {
   if (Modifiers.ctrl) {
@@ -395,6 +455,7 @@ class Piece implements UserEx {
       case "Q": { role = "queen" } break;
       case "K": { role = "king" } break;
       case "P": { role = "pawn" } break;
+      case "D": { role = "duck" } break;
     }
 
     let pce = document.createElement('piece')
@@ -493,7 +554,6 @@ class Piece implements UserEx {
     let fs_cb = {
       q_ch,
       translate: function (_pos: [number, number]): void {
-        _pos = [Math.floor((_pos[0] - 1)) / 8, Math.floor((_pos[1] - 1)) / 8]
         t20(_pos)
       },
       drop() {
@@ -514,8 +574,11 @@ class Piece implements UserEx {
         t20(_pos)
 
         pce.classList.add('drag')
+
+        Dests.push_his([[4, 4], [1, 1]])
       },
       on_drag: function (_pos: [number, number]): void {
+        Dests.push_full(_pos)
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
         lerp_10(_pos)
         Xs.on_drag(xs_cb)
@@ -528,6 +591,9 @@ class Piece implements UserEx {
         Xs.on_drop(xs_cb)
 
         Fens.push_fen()
+
+
+        //Dests.clear()
       }
     }
 
@@ -732,7 +798,6 @@ export class Shess implements UserEx {
     ss.appendChild(board)
 
     board.appendChild(pieces)
-    board.appendChild(Arrows.el)
 
 
     let bounds: DOMRect;
@@ -1093,6 +1158,10 @@ class FenManager {
       }
     })
 
+    if (!needs.find(_ => _[0] === 'd')) {
+      needs.push(['d', [4, 4]])
+    }
+
     let moves: [FenCb, [string, [number, number]]][] = []
 
     let has = this.ps.slice(0)
@@ -1153,9 +1222,10 @@ class FenManager {
     xtras.forEach(_ => _.drop())
 
     moves.forEach(([p, n]) => {
-      p.translate(n[1])
-    })
 
+      let pos = [Math.floor((n[1][0] - 1)) / 8, Math.floor((n[1][1] - 1)) / 8] as XY
+      p.translate(pos)
+    })
   }
 }
 
@@ -1420,6 +1490,8 @@ const Ranks = new RanksManager()
 const Files = new FilesManager()
 const Pieces = new PieceManager()
 const Orients = new OrientsManager()
+
+const Dests = DestsManager.init()
 
 export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
