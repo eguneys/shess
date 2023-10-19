@@ -118,12 +118,17 @@ square.dest {
   background: radial-gradient(yellow 19%, rgba(0, 0, 0, 0) 20%);
 }
 
-square.dest:hover {
+square.dest:hover, square.dest.occupied:hover {
   background: radial-gradient(yellow 100%, rgba(0, 0, 0, 1) 20%);
 }
 
-square.dest.capture {
-  background: radial-gradient(transparent 0%, transparent 80%, yellow 80%);
+square.dest.occupied {
+  background: radial-gradient(transparent 0%, transparent 77%, yellow 80%);
+}
+
+square.last-move {
+  background: #dddd22;
+  opacity: 0.6;
 }
 
 arrows > svg {

@@ -25,6 +25,7 @@ function main(el: HTMLElement) {
     }
     if (ev.key === ' ') {
       ss.fen(INITIAL_FEN)
+      ss.last_move([])
       ev.preventDefault()
       return false
     }

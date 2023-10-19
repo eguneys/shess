@@ -1,12 +1,32 @@
 type Key = string
 class HighlightsManager {
 
-  dests: { [key: string] : Key[] } = {}
+  dests: { [key: string]: Key[] } = {}
 
   selected?: Key
   set_dests?: Key[]
+  last_moves?: Key[]
 
-  
+  can_dest(orig: Key, dest: Key) {
+    return this.dests[orig]?.includes(dest)
+  }
+
+  last_move(last_moves: Key[]) {
+    this.clear_last_moves()
+
+    if (last_moves.length > 0) {
+      this.last_moves = last_moves
+      Squares.add_klass('last-move', last_moves)
+    }
+  }
+
+  clear_last_moves() {
+    if (this.last_moves) {
+      Squares.remove_klass('last-move', this.last_moves)
+      this.last_moves = undefined
+    }
+  }
+
   select_piece(key: string) {
     this.deselect()
 
@@ -52,14 +72,19 @@ class SquareHi {
 
         el.classList.remove(_)
           setTimeout(() => {
-            if (el.classList.length === 0) {
+            if (el.classList.length === 0 ||
+            (el.classList.length === 1 && el.classList.contains('occupied'))) {
               Squares.pop(cb)
             }
           })
       }
     }
 
+    let p = Fens.get_piece_by_key(key)
 
+    if (p) {
+      el.classList.add('occupied')
+    }
 
     Squares.push(cb)
   }
@@ -632,6 +657,8 @@ class Piece implements UserEx {
       }
     }
 
+    let _orig = _pos
+
     let ds_cb: DragCb = {
       q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
       on_click: function (_pos: [number, number]): void {
@@ -642,7 +669,9 @@ class Piece implements UserEx {
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
       },
       on_down: function (_pos: [number, number]): void {
-        let key = Orients.coord_to_key(snap_u_coord(_pos))
+        let orig = snap_u_coord(_pos)
+        _orig = orig
+        let key = Orients.coord_to_key(orig)
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
         t20(_pos)
 
@@ -656,12 +685,26 @@ class Piece implements UserEx {
       },
       on_drop: function (_pos: [number, number]): void {
         Anims.cancel()
-        t20(snap_u_coord(_pos).map(_ => (_/8)) as XY)
-        pce.classList.remove('drag')
-        Xs.on_drop(xs_cb)
 
-        Highs.deselect()
+        let orig = _orig
+        let dest = snap_u_coord(_pos)
+
         Fens.push_fen()
+
+        if (Highs.can_dest(Orients.coord_to_key(orig), Orients.coord_to_key(dest))) {
+          t20(dest.map(_ => (_/8)) as XY)
+          Xs.on_drop(xs_cb)
+
+        Highs.last_move([Orients.coord_to_key(orig), Orients.coord_to_key(dest)])
+
+        } else {
+          t20(orig.map(_ => (_/8)) as XY)
+        }
+
+
+
+        pce.classList.remove('drag')
+        Highs.deselect()
       }
     }
 
@@ -1025,6 +1068,11 @@ export class Shess implements UserEx {
 
   constructor(readonly el: HTMLElement, readonly ux: UserEx) {}
 
+
+  last_move(lm: Key[]) {
+    Highs.last_move(lm)
+  }
+
   dests(dests: { [key: string]: string[] }) {
     Highs.dests = dests
   }
@@ -1154,6 +1202,16 @@ type FenCb = {
 class FenManager {
 
   pfbs: ((_: Fen) => void)[] = []
+
+
+  get_piece_by_key(key: Key) {
+    return this.ps.find(_ => {
+      let _key = _.q_ch()[1]
+      _key = [_key[0] - 1, _key[1] - 1]
+      return arr_eq(_key, Orients.key_to_coord(key))
+    })
+  }
+
 
   pull_fen(cb: (_: Fen) => void) {
     this.pfbs.push(cb)
