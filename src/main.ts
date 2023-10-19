@@ -17,7 +17,7 @@ function main(el: HTMLElement) {
     //console.log(fen)
   })
 
-  ss.dests({ 'a2': ['a3', 'a4'] })
+  ss.dests({ 'a2': ['a3', 'a4'], 'b2': ['b3', 'b4' ] })
 
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === '2') {

@@ -1,8 +1,35 @@
-class LogicManager {
+type Key = string
+class HighlightsManager {
 
-  dests: { [key: string] : string[] } = {}
+  dests: { [key: string] : Key[] } = {}
 
+  selected?: Key
+  set_dests?: Key[]
 
+  
+  select_piece(key: string) {
+    this.deselect()
+
+    let dests = this.dests[key]
+    if (dests) {
+      Squares.add_klass('dest', dests)
+      this.set_dests = dests
+    }
+
+    this.selected = key
+    Squares.add_klass('selected', [key])
+  }
+
+  deselect() {
+    if (this.selected)  {
+      Squares.remove_klass('selected', [this.selected])
+      this.selected = undefined
+    }
+    if (this.set_dests) {
+      Squares.remove_klass('dest', this.set_dests)
+      this.set_dests = undefined
+    }
+  }
 
 }
 
@@ -24,9 +51,11 @@ class SquareHi {
       remove_klass(_: string) {
 
         el.classList.remove(_)
-        if (el.classList.length === 0) {
-          setTimeout(() => Squares.pop(cb), 0)
-        }
+          setTimeout(() => {
+            if (el.classList.length === 0) {
+              Squares.pop(cb)
+            }
+          })
       }
     }
 
@@ -71,7 +100,7 @@ class SquareManager {
 
   push(cb: SquareCb) {
     this.cbs.push(cb)
-    this.el.appendChild(cb.el)
+    this.el.prepend(cb.el)
   }
 
   pop(cb: SquareCb) {
@@ -606,15 +635,18 @@ class Piece implements UserEx {
     let ds_cb: DragCb = {
       q_pos: () => [_pos[0] + 0.5/8, _pos[1] + 0.5/8],
       on_click: function (_pos: [number, number]): void {
-        _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
+        Anims.cancel()
+        t20(snap_u_coord(_pos).map(_ => (_/8)) as XY)
       },
       on_hover: function (_pos: [number, number]): void {
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
       },
       on_down: function (_pos: [number, number]): void {
+        let key = Orients.coord_to_key(snap_u_coord(_pos))
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
         t20(_pos)
 
+        Highs.select_piece(key)
         pce.classList.add('drag')
       },
       on_drag: function (_pos: [number, number]): void {
@@ -623,10 +655,12 @@ class Piece implements UserEx {
         Xs.on_drag(xs_cb)
       },
       on_drop: function (_pos: [number, number]): void {
+        Anims.cancel()
         t20(snap_u_coord(_pos).map(_ => (_/8)) as XY)
         pce.classList.remove('drag')
         Xs.on_drop(xs_cb)
 
+        Highs.deselect()
         Fens.push_fen()
       }
     }
@@ -992,6 +1026,7 @@ export class Shess implements UserEx {
   constructor(readonly el: HTMLElement, readonly ux: UserEx) {}
 
   dests(dests: { [key: string]: string[] }) {
+    Highs.dests = dests
   }
 
   init() {
@@ -1311,18 +1346,6 @@ class DragManager {
 
     this.d = dd
     this.d.on_down(d)
-
-    setTimeout(() => {
-
-      if (this._up) {
-        dd.on_click(this._up)
-        this._move = undefined
-        this._down = undefined
-        this.d = undefined
-      } else if (this._move) {
-        dd.on_drag(this._move)
-      }
-    }, 120)
   }
 
   set move(m: [number, number]) {
@@ -1339,7 +1362,11 @@ class DragManager {
 
   set up(u: [number, number]) {
     if (this.d) {
-      this.d.on_drop(u)
+      if (!this._move) {
+        this.d.on_click(u)
+      } else {
+        this.d.on_drop(u)
+      }
     }
     this._up = u
     this._move = undefined
@@ -1532,7 +1559,7 @@ const Orients = new OrientsManager()
 
 const Arrows = ArrowManager.init()
 const Squares = SquareManager.init()
-const Logics = new LogicManager()
+const Highs = new HighlightsManager()
 
 export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 

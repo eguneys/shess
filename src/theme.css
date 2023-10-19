@@ -90,6 +90,7 @@ arrows {
   left: 0;
   width: 100%;
   height: 100%;
+  pointer-events: none;
 }
 
 
@@ -98,23 +99,30 @@ arrows {
 }
 
 
-pieces dest {
+square {
   position: absolute;
   top: 0;
   left: 0;
   transform-origin: center;
   width: calc(100%/8);
   aspect-ratio: 1/1;
-  background: radial-gradient(yellow 19%, rgba(0, 0, 0, 0) 20%);
   transform: translate(-50%, -50%);
   transition: cubic-bezier(0.215, 0.610, 0.355, 1) 0.06s;
 }
 
-pieces dest:hover {
+square.selected {
+  background: lightyellow;
+}
+
+square.dest {
+  background: radial-gradient(yellow 19%, rgba(0, 0, 0, 0) 20%);
+}
+
+square.dest:hover {
   background: radial-gradient(yellow 100%, rgba(0, 0, 0, 1) 20%);
 }
 
-pieces dest.capture:hover {
+square.dest.capture {
   background: radial-gradient(transparent 0%, transparent 80%, yellow 80%);
 }
 
