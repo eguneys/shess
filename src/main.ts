@@ -10,12 +10,14 @@ function main(el: HTMLElement) {
   el.appendChild(ss.el)
 
   ss.pull_arrows(ac => {
-    console.log(ac.circles)
+    //console.log(ac.circles)
   })
 
   ss.pull_fen(fen => {
-    console.log(fen)
+    //console.log(fen)
   })
+
+  ss.dests({ 'a2': ['a3', 'a4'] })
 
   document.addEventListener('keydown', (ev: KeyboardEvent) => {
     if (ev.key === '2') {

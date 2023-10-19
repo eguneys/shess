@@ -84,7 +84,7 @@ piece.xx {
 }
 
 
-arrows, dests {
+arrows {
   position: absolute;
   top: 0;
   left: 0;
@@ -112,6 +112,10 @@ pieces dest {
 
 pieces dest:hover {
   background: radial-gradient(yellow 100%, rgba(0, 0, 0, 1) 20%);
+}
+
+pieces dest.capture:hover {
+  background: radial-gradient(transparent 0%, transparent 80%, yellow 80%);
 }
 
 arrows > svg {

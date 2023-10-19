@@ -1,53 +1,82 @@
-class DestHi {
+class LogicManager {
 
-  static init = (d: XY) => {
-    let el = document.createElement('dest')
+  dests: { [key: string] : string[] } = {}
 
-    el.style.transform = `translate(${d[0] * 800}%, ${d[1] * 800}%)`
 
-    setTimeout(() => { el.classList.add('active') }, 0)
 
-    const on_remove = () => {
-      el.classList.remove('active')
-      if (el.classList.contains('full')) {
+}
 
-        el.remove()
-      } else {
-        setTimeout(() => el.remove(), 200)
+
+class SquareHi {
+
+  static init = (key: string) => {
+    let el = document.createElement('square')
+
+    let d = Orients.key_to_coord(key)
+    el.style.transform = `translate(${d[0] * 100}%, ${d[1] * 100}%)`
+
+    let cb = {
+      key,
+      el,
+      add_klass(_: string) {
+        el.classList.add(_)
+      },
+      remove_klass(_: string) {
+
+        el.classList.remove(_)
+        if (el.classList.length === 0) {
+          setTimeout(() => Squares.pop(cb), 0)
+        }
       }
     }
 
-    return new DestHi(el, d, on_remove)
+
+
+    Squares.push(cb)
   }
 
-  constructor(readonly el: HTMLElement, readonly d: XY, readonly on_remove: () => void) {}
+  constructor(readonly el: HTMLElement, readonly key: string, readonly on_remove: () => void) {}
 }
 
-class DestsManager {
+type SquareCb = {
+  key: string,
+  el: HTMLElement,
+  add_klass: (_: string) => void,
+  remove_klass: (_: string) => void
+}
+
+class SquareManager {
+  
   static init = () => {
-    return new DestsManager(Pieces.pieces)
+    return new SquareManager(Pieces.pieces)
   }
 
-  his: DestHi[] = []
+  cbs: SquareCb[] = []
 
-  push_full(pos: XY) {
-    let x = this.his.find(_ => arr_eq(_.d, snap_u_pos(pos)))
-    x?.el.classList.add('full')
-    this.his.filter(_ => _ !== x).forEach(_ => _.el.classList.remove('full'))
+  add_klass(klass: string, keys: string[]) {
+    let has_keys = this.cbs.map(_ => _.key)
+    let miss_keys = keys.filter(_ => !has_keys.includes(_))
+
+    miss_keys.forEach(_ => SquareHi.init(_))
+
+    this.cbs
+    .filter(_ => keys.includes(_.key))
+    .forEach(_ => _.add_klass(klass))
   }
 
-  push_his(dests: XY[]) {
-    let els = dests.map(d => {
-      let hi = DestHi.init([d[0] / 8, d[1] / 8] as XY)
-      this.his.push(hi)
-      return hi.el
-    })
-    this.el.prepend(...els)
+  remove_klass(klass: string, keys: string[]) {
+    let cbs = this.cbs.filter(_ => keys.includes(_.key))
+    cbs.forEach(_ => _.remove_klass(klass))
   }
 
-  clear() {
-    this.his.forEach(_ => _.on_remove())
-    this.his = []
+  push(cb: SquareCb) {
+    this.cbs.push(cb)
+    this.el.appendChild(cb.el)
+  }
+
+  pop(cb: SquareCb) {
+    let [h] = this.cbs.splice(this.cbs.indexOf(cb), 1)
+    h.el.remove()
   }
 
   constructor(readonly el: HTMLElement) {}
@@ -55,6 +84,23 @@ class DestsManager {
 
 
 class OrientsManager {
+  
+  key_to_coord(key: string): XY {
+    return [this.files.indexOf(key[0]), this.ranks.indexOf(key[1])]
+  }
+  coord_to_key(coord: XY): string {
+    return this.files[coord[0]] + this.ranks[coord[1]]
+  }
+
+  get files() {
+    let lh = 'abcdefgh'.split('')
+    return this.lh.map(i => lh[i - 1])
+  }
+
+  get ranks() {
+    let lh = '12345678'.split('')
+    return this.lh.map(i => lh[i - 1])
+  }
 
   get lh() {
     return this.hl.reverse()
@@ -77,10 +123,6 @@ const arr_eq = (a: [number, number], b: [number, number]) => a[0] === b[0] && a[
 const snap_u_coord = (u: [number, number]): [number, number] => [
   Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))), 
   Math.max(0, Math.min(7, Math.floor(u[1] / (1/8))))]
-const snap_u_pos = (u: [number, number]): [number, number] => [
-  Math.max(0, Math.min(7, Math.floor(u[0] / (1/8)))) / 8, 
-  Math.max(0, Math.min(7, Math.floor(u[1] / (1/8)))) / 8]
-
 
 
 const get_color_from_modifiers = () => {
@@ -574,26 +616,18 @@ class Piece implements UserEx {
         t20(_pos)
 
         pce.classList.add('drag')
-
-        Dests.push_his([[4, 4], [1, 1]])
       },
       on_drag: function (_pos: [number, number]): void {
-        Dests.push_full(_pos)
         _pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
         lerp_10(_pos)
         Xs.on_drag(xs_cb)
       },
       on_drop: function (_pos: [number, number]): void {
-        //_pos = [_pos[0] - 0.5/8, _pos[1] - 0.5/8]
-
         t20(snap_u_coord(_pos).map(_ => (_/8)) as XY)
         pce.classList.remove('drag')
         Xs.on_drop(xs_cb)
 
         Fens.push_fen()
-
-
-        //Dests.clear()
       }
     }
 
@@ -798,6 +832,7 @@ export class Shess implements UserEx {
     ss.appendChild(board)
 
     board.appendChild(pieces)
+    board.appendChild(Arrows.el)
 
 
     let bounds: DOMRect;
@@ -829,6 +864,7 @@ export class Shess implements UserEx {
       Modifiers.alt= ev.altKey
       Modifiers.shift = ev.shiftKey
       if (ev.button === 0) {
+        Arrows.clear()
         Drags.down = _p 
       } else {
         Draws.down = _p; 
@@ -955,6 +991,9 @@ export class Shess implements UserEx {
 
   constructor(readonly el: HTMLElement, readonly ux: UserEx) {}
 
+  dests(dests: { [key: string]: string[] }) {
+  }
+
   init() {
     this.ux.init()
   }
@@ -1042,6 +1081,7 @@ class CaptureManager {
         if (this._hovering != _hovering) {
           this._hovering.on_x_hov_end()
           this._hovering = _hovering
+          this._hovering.on_x_hover()
         }
       } else {
         this._hovering = _hovering
@@ -1373,7 +1413,7 @@ class AnimationManager {
         let outs = self.ps.filter(v => v._value![4] >= v.dur)
 
         outs.forEach(v =>
-          v.update([v._value![2], v._value![3]]))
+          v.update([v.end[0], v.end[1]]))
 
         self.ps = self.ps.filter(v => v._value![4] < v.dur)
         if (self.ps.length == 0) {
@@ -1479,7 +1519,6 @@ type Modifiers = {
 const Modifiers: Modifiers = { ctrl: false, alt: false, shift: false}
 
 const Draws = new DrawManager()
-const Arrows = ArrowManager.init()
 const Scales = new AnimationManager()
 const Anims = new AnimationManager()
 const Drags = new DragManager()
@@ -1491,7 +1530,9 @@ const Files = new FilesManager()
 const Pieces = new PieceManager()
 const Orients = new OrientsManager()
 
-const Dests = DestsManager.init()
+const Arrows = ArrowManager.init()
+const Squares = SquareManager.init()
+const Logics = new LogicManager()
 
 export const INITIAL_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
 
