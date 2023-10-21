@@ -9,11 +9,11 @@ function main(el: HTMLElement) {
   let ss = Shess.init()
   el.appendChild(ss.el)
 
-  ss.pull_arrows(ac => {
+  ss.pull_arrows(_ac => {
     //console.log(ac.circles)
   })
 
-  ss.pull_fen(fen => {
+  ss.pull_fen(_fen => {
     //console.log(fen)
   })
 
