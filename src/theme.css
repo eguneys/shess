@@ -32,6 +32,7 @@ shess > ranks {
   grid-row: 2/ 3;
   display: flex;
   flex-flow: column;
+  padding: 0 0.2em;
 }
 
 
@@ -41,6 +42,7 @@ ranks > rank {
   flex: 1;
   font-style:oblique;
   font-weight: bold;
+  text-align: center;
 }
 ranks > rank {
   display: flex;

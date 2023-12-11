@@ -689,14 +689,15 @@ class Piece implements UserEx {
         let orig = _orig
         let dest = snap_u_coord(_pos)
 
-        Fens.push_fen()
+        Xs.on_drag_end()
 
         if (Highs.can_dest(Orients.coord_to_key(orig), Orients.coord_to_key(dest))) {
           t20(dest.map(_ => (_/8)) as XY)
           Xs.on_drop(xs_cb)
 
-        Highs.last_move([Orients.coord_to_key(orig), Orients.coord_to_key(dest)])
+          Highs.last_move([Orients.coord_to_key(orig), Orients.coord_to_key(dest)])
 
+          Fens.push_fen()
         } else {
           t20(orig.map(_ => (_/8)) as XY)
         }
@@ -1131,6 +1132,7 @@ type XCb = {
 }
 
 class CaptureManager {
+  
   ps: XCb[] = []
 
   _hovering?: XCb;
@@ -1146,6 +1148,12 @@ class CaptureManager {
     this.ps.push(p)
   }
 
+  on_drag_end() {
+    if (this._hovering) {
+      this._hovering.on_x_hov_end()
+      this._hovering = undefined
+    }
+  }
 
   on_drag(p: XCb) {
     let _hovering;
@@ -1291,7 +1299,8 @@ class FenManager {
       }
     })
 
-    if (!needs.find(_ => _[0] === 'd')) {
+
+    if (false && !needs.find(_ => _[0] === 'd')) {
       needs.push(['d', [4, 4]])
     }
 
